@@ -1,6 +1,7 @@
 import re, json
 from sources import FFTODAY_HALF, FFTODAY_PPR, FFTODAY_STD
 from sources2 import ADP, FFC, PP
+from scratches import SCRATCHED
 
 TEAM_FIX = {"JAX":"JAC"}
 DEF_CITY = {"DEN":"Broncos","HOU":"Texans","SEA":"Seahawks","MIN":"Vikings","PIT":"Steelers","LAR":"Rams","LAC":"Chargers","PHI":"Eagles","NE":"Patriots","DET":"Lions","BUF":"Bills","JAC":"Jaguars","BAL":"Ravens","DAL":"Cowboys","GB":"Packers","KC":"Chiefs"}
@@ -57,9 +58,21 @@ for line in PP.strip().splitlines():
     p = ensure(key,disp,pos,team)
     p["r"]["pp"]=int(rk)
 
+# subvertadown TapThatDraft board (scraped, personal): display-only column, not in consensus
+import pathlib, csv
+_sd = pathlib.Path(__file__).parent.parent/"data_private"/"subvertadown_board.csv"
+if _sd.exists():
+    n = 0
+    for row in csv.DictReader(open(_sd)):
+        key,disp = norm(row["name"], row["pos"], row["team"])
+        if key in players:
+            players[key]["r"]["sd"] = int(row["overall"]); n += 1
+    print(f"subvertadown: {n} matched")
+
 # sanity: keys with same display but different key
 out = []
 for k,p in players.items():
+    if k in SCRATCHED: continue
     out.append({"id":k,**p})
 print(len(out),"players")
 # check suspicious near-dupes

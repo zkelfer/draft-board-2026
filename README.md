@@ -27,16 +27,32 @@ Open `dist/index.html` in a browser. No server needed.
 pipeline/
   sources.py      FFToday Std / Half / PPR boards (pasted, dated)
   sources2.py     Yahoo + Underdog ADP table, FFC market ranks, PrizePicks top-200
+  scratches.py    manual scratches (suspensions etc.) dropped from the board
+  build_proj.py   data_private/DraftSheets_2026.xlsx → proj.json (raw stat projections)
   build_data.py   normalizes names, merges sources → data.json
-  template.html   the app; __DATA__ and __ASOF__ are injected at build
-  build.py        template + data.json → dist/index.html
+  template.html   the app; __DATA__, __PROJ__ and __ASOF__ are injected at build
+  build.py        template + data.json + proj.json → dist/index.html
 ```
 
 Refresh cycle: update the pasted lists in `sources*.py`, then
 
 ```
-cd pipeline && python3 build_data.py && python3 build.py
+cd pipeline && python3 build_proj.py && python3 build_data.py && python3 build.py
 ```
+
+`data_private/` is git-ignored (shared/scraped source material, not redistributable).
+`build_proj.py` and the subvertadown merge skip cleanly when it's absent.
+
+## VAL column (league-adjusted value over replacement)
+
+The **League** button on the board sets team count, roster slots, superflex, pass-TD/INT
+scoring and auction budget per draft slot. VAL = projected points above the positional
+baseline for those settings; hover a value for its auction dollar estimate. Projections
+come from a friend's DraftSheets workbook (raw stat lines, low/avg/high, projected missed
+games); the baseline math follows its VBD model: starters × league size (QB ×1.17,
+RB ×1.267, WR ×1.23, TE ×1.0) plus each position's share of the flex pool, with
+projections discounted ×(16 − missed games)/17. Reception scoring follows the
+Std / Half / PPR toggle.
 
 ## Sources (as of Aug 31, 2026)
 
@@ -46,6 +62,8 @@ cd pipeline && python3 build_data.py && python3 build.py
 | PrizePicks (Christian Hardy) | Expert | PPR | 8/29 |
 | FantasyFootballCalculator | Market (mock drafts) | Half-PPR | 8/31 |
 | Yahoo ADP, Underdog ADP | Market | Half-PPR | 8/24 (via FFToday) |
+| DraftSheets workbook (shared) | Projections (VAL column) | Any (recomputed) | 8/30 |
+| Subvertadown TapThatDraft | Value board (SubD column) | 1.0 PPR, 12-team | 8/31 |
 
 ## Yahoo Fantasy Sports API (planned, read-only)
 
