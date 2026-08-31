@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draft Board 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#182029; --bg2:#1F2A35; --bg3:#26323F; --line:#33414F;
+  --ink:#EEF2F5; --ink2:#AEB9C4; --mute:#7D8A97;
+  --rb:#45B57C; --wr:#4F8FE6; --qb:#E25B47; --te:#E8B547; --k:#9AA5B1; --def:#8A7CE0;
+  --up:#45B57C; --down:#E25B47; --mine:#E8B547;
+  --font:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"Barlow Condensed","Barlow",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.35;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--te);outline-offset:2px}
+input{font:inherit}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+.top-row{display:flex;align-items:center;gap:12px;padding:10px 14px;flex-wrap:wrap}
+h1{font-family:var(--cond);font-weight:700;font-size:26px;letter-spacing:.2px;margin:0 8px 0 0;line-height:1}
+h1 small{font-family:var(--font);font-weight:500;font-size:12px;color:var(--mute);margin-left:6px;letter-spacing:0}
+.seg{display:inline-flex;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:2px}
+.seg button{padding:6px 12px;border-radius:4px;color:var(--ink2);font-weight:600;font-size:13px}
+.seg button[aria-pressed=true]{background:var(--bg3);color:var(--ink)}
+.slot{display:flex;align-items:center;gap:6px}
+.slot select{background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font:inherit;font-weight:600}
+.slot input{background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 10px;width:150px}
+.spacer{flex:1}
+.btn{padding:7px 12px;border:1px solid var(--line);border-radius:6px;font-weight:600;font-size:13px;color:var(--ink2);background:var(--bg2)}
+.btn:hover{color:var(--ink);border-color:#4a5a6b}
+.btn.danger:hover{color:var(--down);border-color:var(--down)}
+.status{font-size:12px;color:var(--mute)}
+
+.tabs{display:flex;gap:2px;padding:0 14px;border-top:1px solid var(--line)}
+.tabs button{padding:10px 14px;color:var(--mute);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--te)}
+
+/* on the clock strip */
+.clock{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--bg2)}
+.clock .cell{min-width:0}
+.clock .lab{font-size:11px;color:var(--mute);margin-bottom:4px;font-weight:600}
+.clock .who{font-family:var(--cond);font-size:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clock .sub{font-size:12px;color:var(--ink2)}
+.clock .sub b{color:var(--up)}
+
+/* filters */
+.filters{display:flex;gap:8px;align-items:center;padding:10px 14px;flex-wrap:wrap}
+.search{flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:8px 12px;color:var(--ink)}
+.chip{padding:6px 10px;border-radius:14px;border:1px solid var(--line);color:var(--ink2);font-size:13px;font-weight:600}
+.chip[aria-pressed=true]{color:#101418;border-color:transparent}
+.chip.QB[aria-pressed=true]{background:var(--qb)} .chip.RB[aria-pressed=true]{background:var(--rb)}
+.chip.WR[aria-pressed=true]{background:var(--wr)} .chip.TE[aria-pressed=true]{background:var(--te)}
+.chip.K[aria-pressed=true]{background:var(--k)} .chip.DEF[aria-pressed=true]{background:var(--def)}
+.chip.ALL[aria-pressed=true]{background:var(--ink)}
+.toggle{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);cursor:pointer}
+.toggle input{accent-color:var(--te)}
+
+/* table */
+.wrap{overflow:auto;padding:0 8px 40px}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th{position:sticky;top:0;background:var(--bg);z-index:5;text-align:left;font-size:12px;font-weight:600;color:var(--mute);padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+th[aria-sort]{color:var(--ink)}
+th[aria-sort=ascending]::after{content:" ▲";font-size:9px} th[aria-sort=descending]::after{content:" ▼";font-size:9px}
+td{padding:6px 8px;border-bottom:1px solid #222d38;vertical-align:middle;white-space:nowrap}
+tr.gone td{opacity:.32}
+tr.gone td.name{text-decoration:line-through}
+tr.mine td{background:rgba(232,181,71,.08)}
+tr.mine td.name::before{content:"★ ";color:var(--mine)}
+td.rank{font-family:var(--cond);font-size:18px;font-weight:600;width:44px;color:var(--ink)}
+.tag{display:inline-block;font-family:var(--cond);font-weight:700;font-size:12px;letter-spacing:.3px;padding:2px 6px;border-radius:3px;color:#101418;min-width:44px;text-align:center}
+.tag.QB{background:var(--qb)} .tag.RB{background:var(--rb)} .tag.WR{background:var(--wr)} .tag.TE{background:var(--te)} .tag.K{background:var(--k)} .tag.DEF{background:var(--def)}
+td.name{font-weight:600;font-size:15px}
+td.name .meta{display:block;font-weight:400;font-size:12px;color:var(--mute)}
+td.name .meta em{font-style:normal;color:var(--down)}
+.hl{color:var(--ink2);font-size:13px}
+.hl .sep{color:var(--mute);padding:0 3px}
+.spread{font-size:12px;color:var(--mute)}
+.spread.wide{color:var(--te)}
+/* value bar — the signature */
+.vb{display:flex;align-items:center;gap:6px;min-width:150px}
+.vb .track{position:relative;flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.vb .bar{position:absolute;top:0;height:100%;border-radius:4px}
+.vb .bar.up{left:50%;background:var(--up)} .vb .bar.down{right:50%;background:var(--down)}
+.vb .track::before{content:"";position:absolute;left:50%;top:0;width:1px;height:100%;background:#4a5a6b}
+.vb .n{font-family:var(--cond);font-size:15px;font-weight:600;width:34px;text-align:right}
+.vb .n.up{color:var(--up)} .vb .n.down{color:var(--down)}
+.acts{white-space:nowrap}
+.acts button{width:38px;height:32px;border-radius:6px;border:1px solid var(--line);font-weight:700;font-size:14px;color:var(--ink2);margin-left:4px}
+.acts button:hover{color:var(--ink);border-color:#4a5a6b}
+.acts button.on-gone{background:var(--bg3);color:var(--ink)}
+.acts button.on-mine{background:var(--mine);color:#101418;border-color:var(--mine)}
+
+/* values tab */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:12px 14px 40px}
+@media(max-width:820px){.two{grid-template-columns:1fr}}
+.panel h2{font-family:var(--cond);font-size:20px;font-weight:600;margin:0 0 4px}
+.panel p{margin:0 0 10px;color:var(--mute);font-size:13px}
+.vlist{list-style:none;margin:0;padding:0}
+.vlist li{display:grid;grid-template-columns:44px 1fr auto;gap:8px;align-items:center;padding:7px 4px;border-bottom:1px solid #222d38}
+.vlist li.gone{opacity:.32}
+.vlist .who{font-weight:600}
+.vlist .who span{display:block;font-size:12px;color:var(--mute);font-weight:400}
+.vlist .d{font-family:var(--cond);font-size:20px;font-weight:600;text-align:right}
+.vlist .d small{display:block;font-family:var(--font);font-size:11px;color:var(--mute);font-weight:400}
+
+/* team tab */
+.team{padding:12px 14px 40px;max-width:720px}
+.need{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.need div{padding:6px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--line);font-size:13px}
+.need div b{font-family:var(--cond);font-size:16px}
+.need div.ok{border-color:var(--up)}
+.roster{list-style:none;margin:0;padding:0}
+.roster li{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid #222d38}
+.roster li .n{flex:1;font-weight:600}
+.roster li .n span{font-weight:400;color:var(--mute);font-size:12px;margin-left:6px}
+.roster li button{color:var(--mute);font-size:12px}
+.roster li button:hover{color:var(--down)}
+.empty{color:var(--mute);padding:20px 0}
+
+/* sources footer */
+details.src{margin:0 14px 30px;color:var(--mute);font-size:12px}
+details.src summary{cursor:pointer;color:var(--ink2);font-weight:600}
+details.src ul{margin:8px 0 0;padding-left:18px}
+details.src li{margin:3px 0}
+
+@media(max-width:640px){
+  body{font-size:14px}
+  h1{font-size:22px}
+  .top-row{gap:8px;padding:8px 10px}
+  .slot input{width:110px}
+  .tabs{padding:0 6px}
+  .clock{padding:10px}
+  .filters{padding:8px 10px}
+  .wrap{padding:0 0 40px}
+  table{min-width:700px}
+}
+@media(prefers-reduced-motion:no-preference){
+  .vb .bar{transition:width .25s ease}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <h1>Draft Board 2026<small id="asof"></small></h1>
+    <div class="seg" role="group" aria-label="Scoring">
+      <button data-fmt="std" aria-pressed="false">Std</button>
+      <button data-fmt="half" aria-pressed="true">Half PPR</button>
+      <button data-fmt="ppr" aria-pressed="false">PPR</button>
+    </div>
+    <div class="slot">
+      <select id="slot" aria-label="Draft slot"></select>
+      <input id="slotName" placeholder="League name" aria-label="League name">
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="live" title="Pull live mock-draft ADP from FantasyFootballCalculator for this format">Refresh live ADP</button>
+    <button class="btn danger" id="reset">Clear this draft</button>
+    <span class="status" id="status"></span>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="board">Board</button>
+    <button role="tab" aria-selected="false" data-tab="values">Values vs Yahoo</button>
+    <button role="tab" aria-selected="false" data-tab="team">My team</button>
+  </nav>
+</header>
+
+<section id="clock" class="clock" aria-label="Best available"></section>
+
+<main>
+  <div id="tab-board">
+    <div class="filters">
+      <input class="search" id="q" placeholder="Search player or team" aria-label="Search">
+      <button class="chip ALL" data-pos="ALL" aria-pressed="true">All</button>
+      <button class="chip QB" data-pos="QB" aria-pressed="false">QB</button>
+      <button class="chip RB" data-pos="RB" aria-pressed="false">RB</button>
+      <button class="chip WR" data-pos="WR" aria-pressed="false">WR</button>
+      <button class="chip TE" data-pos="TE" aria-pressed="false">TE</button>
+      <button class="chip K" data-pos="K" aria-pressed="false">K</button>
+      <button class="chip DEF" data-pos="DEF" aria-pressed="false">DEF</button>
+      <label class="toggle"><input type="checkbox" id="hideGone"> Hide drafted</label>
+    </div>
+    <div class="wrap">
+      <table id="tbl">
+        <thead><tr>
+          <th data-k="rank" class="num" title="Consensus rank for this scoring format">#</th>
+          <th data-k="pos">Pos</th>
+          <th data-k="name">Player</th>
+          <th data-k="avg" class="num" title="Average rank across sources">Avg</th>
+          <th data-k="hilo" title="Best and worst rank across sources">Hi / Lo</th>
+          <th data-k="spread" class="num" title="Disagreement between sources">Spread</th>
+          <th data-k="yahoo" class="num" title="Yahoo ADP (8/24)">Yahoo</th>
+          <th data-k="udog" class="num" title="Underdog ADP (8/24)">UD</th>
+          <th data-k="live" class="num" title="Live mock-draft ADP (FantasyFootballCalculator)">Live</th>
+          <th data-k="val" title="Yahoo ADP minus consensus rank. Green = the room lets them fall. Red = the room reaches.">Value vs Yahoo</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-values" hidden>
+    <div class="two">
+      <div class="panel">
+        <h2>Let them fall to you</h2>
+        <p>Consensus ranks them well ahead of where Yahoo drafters take them. Wait a round, then grab.</p>
+        <ul class="vlist" id="falls"></ul>
+      </div>
+      <div class="panel">
+        <h2>The room reaches on these</h2>
+        <p>Yahoo drafters take them earlier than consensus. If you want one, you'll have to pay up — usually don't.</p>
+        <ul class="vlist" id="reaches"></ul>
+      </div>
+      <div class="panel">
+        <h2>Widest disagreement</h2>
+        <p>Sources split hardest on these. Boom-or-bust profiles — draft for ceiling, not floor.</p>
+        <ul class="vlist" id="splits"></ul>
+      </div>
+      <div class="panel">
+        <h2>Yahoo vs Underdog gap</h2>
+        <p>Where casual home-league drafters (Yahoo) and sharp best-ball drafters (Underdog) disagree most.</p>
+        <ul class="vlist" id="yud"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-team" hidden>
+    <div class="team">
+      <div class="need" id="need"></div>
+      <ul class="roster" id="roster"></ul>
+    </div>
+  </div>
+</main>
+
+<details class="src">
+  <summary>Sources and how the numbers work</summary>
+  <ul>
+    <li><b>Consensus / Avg / Hi-Lo / Spread</b> — average of the expert and market boards below for the selected scoring format. Rank = order by Avg.</li>
+    <li><b>FFToday</b> (Mike Krueger) — separate Standard, Half-PPR and PPR top-225 boards, updated 8/30. This is the format-specific anchor.</li>
+    <li><b>PrizePicks</b> (Christian Hardy) — PPR top-200, 8/29. Used in all formats; note it leans PPR.</li>
+    <li><b>FantasyFootballCalculator</b> — half-PPR market rankings from mock drafts, 8/31. Represents the crowd, not an analyst.</li>
+    <li><b>Yahoo ADP</b> and <b>Underdog ADP</b> — via FFToday's ADP table, 8/24. Yahoo defaults to half-PPR, so this is the closest read on your leaguemates' behavior.</li>
+    <li><b>Value vs Yahoo</b> = Yahoo ADP − consensus rank. +12 means the room takes him ~12 picks after consensus says he's worth it.</li>
+    <li><b>Live</b> — FantasyFootballCalculator's public ADP feed for the selected format, fetched on demand. Fails silently if the feed is unreachable from this browser.</li>
+    <li>Not included: JJ Zachariason (Late-Round members hub) and The Ringer (paywalled/embedded). Paste their lists into a message and they can be merged in on the next refresh.</li>
+    <li>Drafted marks and your picks are saved per draft slot and survive closing the app.</li>
+  </ul>
+</details>
+
+<script>
+const DATA = __DATA__;
+const AS_OF = "__ASOF__";
+const FMT_SOURCES = {
+  half:{fft:"fft_half", others:["ffc","pp"]},
+  ppr: {fft:"fft_ppr",  others:["pp","ffc"]},
+  std: {fft:"fft_std",  others:["ffc","pp"]}
+};
+const SRC_LABEL = {fft_half:"FFToday",fft_ppr:"FFToday",fft_std:"FFToday",ffc:"FFC market",pp:"PrizePicks"};
+const TEAM_BYE = {};
+DATA.forEach(p=>{ if(p.bye && p.team) TEAM_BYE[p.team]=p.bye; });
+DATA.forEach(p=>{ if(!p.bye) p.bye = TEAM_BYE[p.team]||null; });
+
+let fmt = "half", pos = "ALL", q = "", hideGone = false, sortK = "rank", sortDir = 1, tab="board";
+let slot = 1, state = {name:"", drafted:{}}; // drafted: id -> "gone" | "mine"
+let live = {};   // id -> adp (per format)
+let rows = [];   // computed
+let storeOK = true;
+
+function fmtKey(){ return "draft:"+slot; }
+async function loadSlot(){
+  state = {name:"",drafted:{}};
+  try{
+    const r = await window.storage.get(fmtKey(), false);
+    if(r && r.value){ const v = JSON.parse(r.value); state = {name:v.name||"", drafted:v.drafted||{}}; if(v.fmt) fmt=v.fmt; }
+  }catch(e){ /* missing key or no storage */ }
+  document.getElementById("slotName").value = state.name;
+  syncFmtButtons();
+  compute(); render();
+}
+let saveT;
+function save(){
+  clearTimeout(saveT);
+  saveT = setTimeout(async ()=>{
+    try{ await window.storage.set(fmtKey(), JSON.stringify({name:state.name,fmt,drafted:state.drafted}), false); setStatus(""); }
+    catch(e){ storeOK=false; setStatus("Not saving — storage unavailable in this view"); }
+  }, 250);
+}
+function setStatus(s){ document.getElementById("status").textContent = s; }
+
+function compute(){
+  const S = FMT_SOURCES[fmt];
+  const keys = [S.fft, ...S.others];
+  rows = DATA.map(p=>{
+    const vals = keys.map(k=>p.r[k]).filter(v=>v!=null);
+    let avg = vals.length? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+    const hi = vals.length? Math.min(...vals):null, lo = vals.length? Math.max(...vals):null;
+    const yahoo = p.r.yahoo ?? null, udog = p.r.udog ?? null;
+    if(avg==null && yahoo!=null) avg = yahoo + 0.01; // no expert coverage: fall back so they still list
+    return {...p, avg, hi, lo, spread: (hi!=null&&lo!=null)? lo-hi : null, yahoo, udog, n:vals.length,
+            live: live[p.id] ?? null, srcs: keys.filter(k=>p.r[k]!=null)};
+  }).filter(r=>r.avg!=null);
+  rows.sort((a,b)=>a.avg-b.avg);
+  const posCount = {};
+  rows.forEach((r,i)=>{ r.rank=i+1; posCount[r.pos]=(posCount[r.pos]||0)+1; r.prank=r.pos+posCount[r.pos];
+    r.val = (r.yahoo!=null)? r.yahoo - r.rank : null; });
+}
+
+function visible(r){
+  if(pos!=="ALL" && r.pos!==pos) return false;
+  if(hideGone && state.drafted[r.id]) return false;
+  if(q){ const s=(r.name+" "+r.team+" "+r.pos).toLowerCase(); if(!s.includes(q)) return false; }
+  return true;
+}
+function sorted(list){
+  const k = sortK;
+  const get = r => k==="hilo"? r.hi : k==="name"? r.name : k==="pos"? r.pos : r[k];
+  return [...list].sort((a,b)=>{
+    let x=get(a), y=get(b);
+    if(x==null && y==null) return 0; if(x==null) return 1; if(y==null) return -1;
+    if(typeof x==="string") return x.localeCompare(y)*sortDir;
+    return (x-y)*sortDir;
+  });
+}
+
+function valBar(r){
+  if(r.val==null) return '<span class="spread">—</span>';
+  const v = r.val, cap = 30, w = Math.min(Math.abs(v),cap)/cap*50;
+  const cls = v>=0? "up":"down";
+  return `<div class="vb"><div class="track"><div class="bar ${cls}" style="width:${w}%"></div></div><span class="n ${cls}">${v>0?"+":""}${v}</span></div>`;
+}
+function renderBoard(){
+  const tb = document.getElementById("rows");
+  const list = sorted(rows.filter(visible));
+  tb.innerHTML = list.map(r=>{
+    const st = state.drafted[r.id]||"";
+    const hilo = r.hi!=null? `<span class="hl">${r.hi}<span class="sep">/</span>${r.lo}</span>` : `<span class="spread">—</span>`;
+    const sp = r.spread!=null? `<span class="spread ${r.spread>=25?'wide':''}">${r.spread}</span>` : "—";
+    const src = r.n? `${r.n} src` : `ADP only`;
+    return `<tr class="${st}" data-id="${r.id}">
+      <td class="rank num">${r.rank}</td>
+      <td><span class="tag ${r.pos}">${r.prank}</span></td>
+      <td class="name">${r.name}<span class="meta">${r.team||"FA"} · bye ${r.bye||"?"} · ${src}${r.team==="FA"?' · <em>free agent</em>':''}</span></td>
+      <td class="num">${r.avg.toFixed(1)}</td>
+      <td>${hilo}</td>
+      <td class="num">${sp}</td>
+      <td class="num">${r.yahoo??"—"}</td>
+      <td class="num">${r.udog??"—"}</td>
+      <td class="num">${r.live!=null? r.live.toFixed(1):"—"}</td>
+      <td>${valBar(r)}</td>
+      <td class="acts">
+        <button data-act="gone" class="${st==='gone'?'on-gone':''}" title="Drafted by someone else" aria-label="Mark drafted by others">✕</button>
+        <button data-act="mine" class="${st==='mine'?'on-mine':''}" title="Drafted by me" aria-label="Mark drafted by me">★</button>
+      </td></tr>`;
+  }).join("");
+  document.querySelectorAll("th[data-k]").forEach(th=>{
+    th.removeAttribute("aria-sort");
+    if(th.dataset.k===sortK) th.setAttribute("aria-sort", sortDir===1?"ascending":"descending");
+  });
+}
+
+function renderClock(){
+  const avail = rows.filter(r=>!state.drafted[r.id]);
+  const best = avail[0];
+  const byVal = [...avail].filter(r=>r.val!=null && r.rank<=150).sort((a,b)=>b.val-a.val)[0];
+  const cells = [];
+  if(best) cells.push({lab:"Best available", who:best.name, sub:`${best.prank} · #${best.rank} consensus`});
+  if(byVal) cells.push({lab:"Best value", who:byVal.name, sub:`<b>+${byVal.val}</b> vs Yahoo · #${byVal.rank}`});
+  ["QB","RB","WR","TE"].forEach(P=>{
+    const a = avail.find(r=>r.pos===P);
+    if(a) cells.push({lab:`Next ${P}`, who:a.name, sub:`#${a.rank}${a.val!=null?` · <b>${a.val>0?'+':''}${a.val}</b> vs Yahoo`:''}`});
+  });
+  document.getElementById("clock").innerHTML = cells.map(c=>`<div class="cell"><div class="lab">${c.lab}</div><div class="who">${c.who}</div><div class="sub">${c.sub}</div></div>`).join("");
+}
+
+function vItem(r, d, sub){
+  const st = state.drafted[r.id]||"";
+  return `<li class="${st}"><span class="tag ${r.pos}">${r.prank}</span><div class="who">${r.name}<span>${r.team} · consensus #${r.rank} · Yahoo ${r.yahoo??"—"}</span></div><div class="d">${d}<small>${sub}</small></div></li>`;
+}
+function renderValues(){
+  const pool = rows.filter(r=>r.val!=null && r.rank<=160 && r.n>=2);
+  const falls = [...pool].sort((a,b)=>b.val-a.val).slice(0,15);
+  const reaches = [...pool].sort((a,b)=>a.val-b.val).slice(0,15);
+  const splits = rows.filter(r=>r.spread!=null && r.n>=3 && r.rank<=150).sort((a,b)=>b.spread-a.spread).slice(0,12);
+  const yud = rows.filter(r=>r.yahoo!=null&&r.udog!=null&&r.rank<=150).map(r=>({...r,g:r.yahoo-r.udog})).sort((a,b)=>Math.abs(b.g)-Math.abs(a.g)).slice(0,12);
+  document.getElementById("falls").innerHTML = falls.map(r=>vItem(r,`<span style="color:var(--up)">+${r.val}</span>`,"picks of value")).join("");
+  document.getElementById("reaches").innerHTML = reaches.map(r=>vItem(r,`<span style="color:var(--down)">${r.val}</span>`,"picks overpaid")).join("");
+  document.getElementById("splits").innerHTML = splits.map(r=>vItem(r,`${r.hi}–${r.lo}`,"hi / lo")).join("");
+  document.getElementById("yud").innerHTML = yud.map(r=>vItem(r,`${r.g>0?"+":""}${r.g}`, r.g>0?"Yahoo later than UD":"Yahoo earlier than UD")).join("");
+}
+
+const NEEDS = [["QB",1],["RB",2],["WR",2],["TE",1],["FLEX",1],["K",1],["DEF",1]];
+function renderTeam(){
+  const mine = rows.filter(r=>state.drafted[r.id]==="mine").sort((a,b)=>a.rank-b.rank);
+  const c = {}; mine.forEach(r=>c[r.pos]=(c[r.pos]||0)+1);
+  const flexAvail = Math.max(0,(c.RB||0)-2)+Math.max(0,(c.WR||0)-2)+Math.max(0,(c.TE||0)-1);
+  document.getElementById("need").innerHTML = NEEDS.map(([P,n])=>{
+    const have = P==="FLEX"? Math.min(flexAvail,1) : Math.min(c[P]||0,n);
+    return `<div class="${have>=n?'ok':''}"><b>${P}</b> ${have}/${n}</div>`;
+  }).join("") + `<div><b>Total</b> ${mine.length}</div>`;
+  const byes = {}; mine.forEach(r=>{ if(r.bye) byes[r.bye]=(byes[r.bye]||0)+1; });
+  const byeWarn = Object.entries(byes).filter(([b,n])=>n>=3).map(([b,n])=>`bye ${b} ×${n}`).join(", ");
+  document.getElementById("roster").innerHTML = mine.length? mine.map(r=>`<li><span class="tag ${r.pos}">${r.prank}</span><div class="n">${r.name}<span>${r.team} · bye ${r.bye||"?"} · consensus #${r.rank}</span></div><button data-id="${r.id}" data-act="clear">remove</button></li>`).join("")
+     + (byeWarn? `<li class="empty">Bye-week stack: ${byeWarn}</li>`:"")
+    : `<li class="empty">No picks yet. Tap ★ on the board when you draft someone.</li>`;
+}
+
+function render(){
+  renderClock();
+  if(tab==="board") renderBoard(); else if(tab==="values") renderValues(); else renderTeam();
+}
+function syncFmtButtons(){ document.querySelectorAll("[data-fmt]").forEach(b=>b.setAttribute("aria-pressed", b.dataset.fmt===fmt)); }
+
+/* events */
+document.querySelector(".seg").addEventListener("click", e=>{
+  const b = e.target.closest("[data-fmt]"); if(!b) return;
+  fmt = b.dataset.fmt; syncFmtButtons(); live = {}; compute(); render(); save();
+});
+document.querySelector(".tabs").addEventListener("click", e=>{
+  const b = e.target.closest("[data-tab]"); if(!b) return;
+  tab = b.dataset.tab;
+  document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected", x===b));
+  ["board","values","team"].forEach(t=>document.getElementById("tab-"+t).hidden = t!==tab);
+  render();
+});
+document.querySelector(".filters").addEventListener("click", e=>{
+  const b = e.target.closest("[data-pos]"); if(!b) return;
+  pos = b.dataset.pos;
+  document.querySelectorAll("[data-pos]").forEach(x=>x.setAttribute("aria-pressed", x===b));
+  renderBoard();
+});
+document.getElementById("q").addEventListener("input", e=>{ q=e.target.value.trim().toLowerCase(); renderBoard(); });
+document.getElementById("hideGone").addEventListener("change", e=>{ hideGone=e.target.checked; renderBoard(); });
+document.querySelector("thead").addEventListener("click", e=>{
+  const th = e.target.closest("th[data-k]"); if(!th) return;
+  const k = th.dataset.k;
+  if(sortK===k) sortDir*=-1; else { sortK=k; sortDir = (k==="val")? -1 : 1; }
+  renderBoard();
+});
+function mark(id, act){
+  const cur = state.drafted[id];
+  if(act==="clear" || cur===act) delete state.drafted[id]; else state.drafted[id]=act;
+  save(); render();
+}
+document.getElementById("rows").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-act]"); if(!b) return;
+  mark(b.closest("tr").dataset.id, b.dataset.act);
+});
+document.getElementById("roster").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-act]"); if(!b) return; mark(b.dataset.id,"clear");
+});
+document.getElementById("reset").addEventListener("click", ()=>{
+  if(!Object.keys(state.drafted).length) return;
+  if(confirm("Clear all drafted marks for this draft slot?")){ state.drafted={}; save(); render(); }
+});
+document.getElementById("slotName").addEventListener("input", e=>{ state.name=e.target.value; save(); refreshSlotLabels(); });
+const slotSel = document.getElementById("slot");
+async function refreshSlotLabels(){
+  const names = {};
+  for(let i=1;i<=5;i++){ try{ const r=await window.storage.get("draft:"+i,false); if(r&&r.value){ const v=JSON.parse(r.value); if(v.name) names[i]=v.name; } }catch(e){} }
+  if(state.name) names[slot]=state.name;
+  slotSel.innerHTML = [1,2,3,4,5].map(i=>`<option value="${i}" ${i===slot?"selected":""}>Draft ${i}${names[i]?" — "+names[i]:""}</option>`).join("");
+}
+slotSel.addEventListener("change", async e=>{ slot=+e.target.value; await loadSlot(); refreshSlotLabels(); });
+
+/* live ADP from FantasyFootballCalculator (public JSON, CORS-enabled) */
+function nk(s){ return s.toLowerCase().replace(/[.'’]/g,"").replace(/\b(jr|sr|iii|ii)\b/g,"").replace(/\s+/g," ").trim(); }
+document.getElementById("live").addEventListener("click", async ()=>{
+  const map = {std:"standard",half:"half-ppr",ppr:"ppr"};
+  setStatus("Fetching live ADP…");
+  try{
+    const res = await fetch(`https://fantasyfootballcalculator.com/api/v1/adp/${map[fmt]}?teams=12&year=2026`);
+    if(!res.ok) throw new Error(res.status);
+    const j = await res.json();
+    const idx = {}; DATA.forEach(p=>{ idx[p.pos==="DEF"? "def_"+p.team : nk(p.name)] = p.id; });
+    let n=0;
+    (j.players||[]).forEach(pl=>{
+      let key = pl.position==="DEF"? "def_"+(pl.team==="JAX"?"JAC":pl.team) : nk(pl.name);
+      if(key==="kenny gainwell") key="kenneth gainwell";
+      const id = idx[key]; if(id){ live[id]=+pl.adp; n++; }
+    });
+    compute(); render();
+    setStatus(n? `Live ADP loaded for ${n} players (${j.meta?.total_drafts||"?"} drafts)` : "Feed returned no matches");
+  }catch(e){ setStatus("Live ADP unavailable in this browser — embedded ADP still applies"); }
+});
+
+document.getElementById("asof").textContent = "data " + AS_OF;
+compute(); render();
+refreshSlotLabels().then(loadSlot);
+</script>
+</body>
+</html>

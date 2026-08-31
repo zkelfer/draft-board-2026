@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draft Board 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#182029; --bg2:#1F2A35; --bg3:#26323F; --line:#33414F;
+  --ink:#EEF2F5; --ink2:#AEB9C4; --mute:#7D8A97;
+  --rb:#45B57C; --wr:#4F8FE6; --qb:#E25B47; --te:#E8B547; --k:#9AA5B1; --def:#8A7CE0;
+  --up:#45B57C; --down:#E25B47; --mine:#E8B547;
+  --font:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"Barlow Condensed","Barlow",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.35;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--te);outline-offset:2px}
+input{font:inherit}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+.top-row{display:flex;align-items:center;gap:12px;padding:10px 14px;flex-wrap:wrap}
+h1{font-family:var(--cond);font-weight:700;font-size:26px;letter-spacing:.2px;margin:0 8px 0 0;line-height:1}
+h1 small{font-family:var(--font);font-weight:500;font-size:12px;color:var(--mute);margin-left:6px;letter-spacing:0}
+.seg{display:inline-flex;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:2px}
+.seg button{padding:6px 12px;border-radius:4px;color:var(--ink2);font-weight:600;font-size:13px}
+.seg button[aria-pressed=true]{background:var(--bg3);color:var(--ink)}
+.slot{display:flex;align-items:center;gap:6px}
+.slot select{background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font:inherit;font-weight:600}
+.slot input{background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:7px 10px;width:150px}
+.spacer{flex:1}
+.btn{padding:7px 12px;border:1px solid var(--line);border-radius:6px;font-weight:600;font-size:13px;color:var(--ink2);background:var(--bg2)}
+.btn:hover{color:var(--ink);border-color:#4a5a6b}
+.btn.danger:hover{color:var(--down);border-color:var(--down)}
+.status{font-size:12px;color:var(--mute)}
+
+.tabs{display:flex;gap:2px;padding:0 14px;border-top:1px solid var(--line)}
+.tabs button{padding:10px 14px;color:var(--mute);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--te)}
+
+/* on the clock strip */
+.clock{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--bg2)}
+.clock .cell{min-width:0}
+.clock .lab{font-size:11px;color:var(--mute);margin-bottom:4px;font-weight:600}
+.clock .who{font-family:var(--cond);font-size:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clock .sub{font-size:12px;color:var(--ink2)}
+.clock .sub b{color:var(--up)}
+
+/* filters */
+.filters{display:flex;gap:8px;align-items:center;padding:10px 14px;flex-wrap:wrap}
+.search{flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:8px 12px;color:var(--ink)}
+.chip{padding:6px 10px;border-radius:14px;border:1px solid var(--line);color:var(--ink2);font-size:13px;font-weight:600}
+.chip[aria-pressed=true]{color:#101418;border-color:transparent}
+.chip.QB[aria-pressed=true]{background:var(--qb)} .chip.RB[aria-pressed=true]{background:var(--rb)}
+.chip.WR[aria-pressed=true]{background:var(--wr)} .chip.TE[aria-pressed=true]{background:var(--te)}
+.chip.K[aria-pressed=true]{background:var(--k)} .chip.DEF[aria-pressed=true]{background:var(--def)}
+.chip.ALL[aria-pressed=true]{background:var(--ink)}
+.toggle{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);cursor:pointer}
+.toggle input{accent-color:var(--te)}
+
+/* table */
+.wrap{overflow:auto;padding:0 8px 40px}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th{position:sticky;top:0;background:var(--bg);z-index:5;text-align:left;font-size:12px;font-weight:600;color:var(--mute);padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+th[aria-sort]{color:var(--ink)}
+th[aria-sort=ascending]::after{content:" ▲";font-size:9px} th[aria-sort=descending]::after{content:" ▼";font-size:9px}
+td{padding:6px 8px;border-bottom:1px solid #222d38;vertical-align:middle;white-space:nowrap}
+tr.gone td{opacity:.32}
+tr.gone td.name{text-decoration:line-through}
+tr.mine td{background:rgba(232,181,71,.08)}
+tr.mine td.name::before{content:"★ ";color:var(--mine)}
+td.rank{font-family:var(--cond);font-size:18px;font-weight:600;width:44px;color:var(--ink)}
+.tag{display:inline-block;font-family:var(--cond);font-weight:700;font-size:12px;letter-spacing:.3px;padding:2px 6px;border-radius:3px;color:#101418;min-width:44px;text-align:center}
+.tag.QB{background:var(--qb)} .tag.RB{background:var(--rb)} .tag.WR{background:var(--wr)} .tag.TE{background:var(--te)} .tag.K{background:var(--k)} .tag.DEF{background:var(--def)}
+td.name{font-weight:600;font-size:15px}
+td.name .meta{display:block;font-weight:400;font-size:12px;color:var(--mute)}
+td.name .meta em{font-style:normal;color:var(--down)}
+.hl{color:var(--ink2);font-size:13px}
+.hl .sep{color:var(--mute);padding:0 3px}
+.spread{font-size:12px;color:var(--mute)}
+.spread.wide{color:var(--te)}
+/* value bar — the signature */
+.vb{display:flex;align-items:center;gap:6px;min-width:150px}
+.vb .track{position:relative;flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.vb .bar{position:absolute;top:0;height:100%;border-radius:4px}
+.vb .bar.up{left:50%;background:var(--up)} .vb .bar.down{right:50%;background:var(--down)}
+.vb .track::before{content:"";position:absolute;left:50%;top:0;width:1px;height:100%;background:#4a5a6b}
+.vb .n{font-family:var(--cond);font-size:15px;font-weight:600;width:34px;text-align:right}
+.vb .n.up{color:var(--up)} .vb .n.down{color:var(--down)}
+.acts{white-space:nowrap}
+.acts button{width:38px;height:32px;border-radius:6px;border:1px solid var(--line);font-weight:700;font-size:14px;color:var(--ink2);margin-left:4px}
+.acts button:hover{color:var(--ink);border-color:#4a5a6b}
+.acts button.on-gone{background:var(--bg3);color:var(--ink)}
+.acts button.on-mine{background:var(--mine);color:#101418;border-color:var(--mine)}
+
+/* values tab */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:12px 14px 40px}
+@media(max-width:820px){.two{grid-template-columns:1fr}}
+.panel h2{font-family:var(--cond);font-size:20px;font-weight:600;margin:0 0 4px}
+.panel p{margin:0 0 10px;color:var(--mute);font-size:13px}
+.vlist{list-style:none;margin:0;padding:0}
+.vlist li{display:grid;grid-template-columns:44px 1fr auto;gap:8px;align-items:center;padding:7px 4px;border-bottom:1px solid #222d38}
+.vlist li.gone{opacity:.32}
+.vlist .who{font-weight:600}
+.vlist .who span{display:block;font-size:12px;color:var(--mute);font-weight:400}
+.vlist .d{font-family:var(--cond);font-size:20px;font-weight:600;text-align:right}
+.vlist .d small{display:block;font-family:var(--font);font-size:11px;color:var(--mute);font-weight:400}
+
+/* team tab */
+.team{padding:12px 14px 40px;max-width:720px}
+.need{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.need div{padding:6px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--line);font-size:13px}
+.need div b{font-family:var(--cond);font-size:16px}
+.need div.ok{border-color:var(--up)}
+.roster{list-style:none;margin:0;padding:0}
+.roster li{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid #222d38}
+.roster li .n{flex:1;font-weight:600}
+.roster li .n span{font-weight:400;color:var(--mute);font-size:12px;margin-left:6px}
+.roster li button{color:var(--mute);font-size:12px}
+.roster li button:hover{color:var(--down)}
+.empty{color:var(--mute);padding:20px 0}
+
+/* sources footer */
+details.src{margin:0 14px 30px;color:var(--mute);font-size:12px}
+details.src summary{cursor:pointer;color:var(--ink2);font-weight:600}
+details.src ul{margin:8px 0 0;padding-left:18px}
+details.src li{margin:3px 0}
+
+@media(max-width:640px){
+  body{font-size:14px}
+  h1{font-size:22px}
+  .top-row{gap:8px;padding:8px 10px}
+  .slot input{width:110px}
+  .tabs{padding:0 6px}
+  .clock{padding:10px}
+  .filters{padding:8px 10px}
+  .wrap{padding:0 0 40px}
+  table{min-width:700px}
+}
+@media(prefers-reduced-motion:no-preference){
+  .vb .bar{transition:width .25s ease}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <h1>Draft Board 2026<small id="asof"></small></h1>
+    <div class="seg" role="group" aria-label="Scoring">
+      <button data-fmt="std" aria-pressed="false">Std</button>
+      <button data-fmt="half" aria-pressed="true">Half PPR</button>
+      <button data-fmt="ppr" aria-pressed="false">PPR</button>
+    </div>
+    <div class="slot">
+      <select id="slot" aria-label="Draft slot"></select>
+      <input id="slotName" placeholder="League name" aria-label="League name">
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="live" title="Pull live mock-draft ADP from FantasyFootballCalculator for this format">Refresh live ADP</button>
+    <button class="btn danger" id="reset">Clear this draft</button>
+    <span class="status" id="status"></span>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="board">Board</button>
+    <button role="tab" aria-selected="false" data-tab="values">Values vs Yahoo</button>
+    <button role="tab" aria-selected="false" data-tab="team">My team</button>
+  </nav>
+</header>
+
+<section id="clock" class="clock" aria-label="Best available"></section>
+
+<main>
+  <div id="tab-board">
+    <div class="filters">
+      <input class="search" id="q" placeholder="Search player or team" aria-label="Search">
+      <button class="chip ALL" data-pos="ALL" aria-pressed="true">All</button>
+      <button class="chip QB" data-pos="QB" aria-pressed="false">QB</button>
+      <button class="chip RB" data-pos="RB" aria-pressed="false">RB</button>
+      <button class="chip WR" data-pos="WR" aria-pressed="false">WR</button>
+      <button class="chip TE" data-pos="TE" aria-pressed="false">TE</button>
+      <button class="chip K" data-pos="K" aria-pressed="false">K</button>
+      <button class="chip DEF" data-pos="DEF" aria-pressed="false">DEF</button>
+      <label class="toggle"><input type="checkbox" id="hideGone"> Hide drafted</label>
+    </div>
+    <div class="wrap">
+      <table id="tbl">
+        <thead><tr>
+          <th data-k="rank" class="num" title="Consensus rank for this scoring format">#</th>
+          <th data-k="pos">Pos</th>
+          <th data-k="name">Player</th>
+          <th data-k="avg" class="num" title="Average rank across sources">Avg</th>
+          <th data-k="hilo" title="Best and worst rank across sources">Hi / Lo</th>
+          <th data-k="spread" class="num" title="Disagreement between sources">Spread</th>
+          <th data-k="yahoo" class="num" title="Yahoo ADP (8/24)">Yahoo</th>
+          <th data-k="udog" class="num" title="Underdog ADP (8/24)">UD</th>
+          <th data-k="live" class="num" title="Live mock-draft ADP (FantasyFootballCalculator)">Live</th>
+          <th data-k="val" title="Yahoo ADP minus consensus rank. Green = the room lets them fall. Red = the room reaches.">Value vs Yahoo</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-values" hidden>
+    <div class="two">
+      <div class="panel">
+        <h2>Let them fall to you</h2>
+        <p>Consensus ranks them well ahead of where Yahoo drafters take them. Wait a round, then grab.</p>
+        <ul class="vlist" id="falls"></ul>
+      </div>
+      <div class="panel">
+        <h2>The room reaches on these</h2>
+        <p>Yahoo drafters take them earlier than consensus. If you want one, you'll have to pay up — usually don't.</p>
+        <ul class="vlist" id="reaches"></ul>
+      </div>
+      <div class="panel">
+        <h2>Widest disagreement</h2>
+        <p>Sources split hardest on these. Boom-or-bust profiles — draft for ceiling, not floor.</p>
+        <ul class="vlist" id="splits"></ul>
+      </div>
+      <div class="panel">
+        <h2>Yahoo vs Underdog gap</h2>
+        <p>Where casual home-league drafters (Yahoo) and sharp best-ball drafters (Underdog) disagree most.</p>
+        <ul class="vlist" id="yud"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-team" hidden>
+    <div class="team">
+      <div class="need" id="need"></div>
+      <ul class="roster" id="roster"></ul>
+    </div>
+  </div>
+</main>
+
+<details class="src">
+  <summary>Sources and how the numbers work</summary>
+  <ul>
+    <li><b>Consensus / Avg / Hi-Lo / Spread</b> — average of the expert and market boards below for the selected scoring format. Rank = order by Avg.</li>
+    <li><b>FFToday</b> (Mike Krueger) — separate Standard, Half-PPR and PPR top-225 boards, updated 8/30. This is the format-specific anchor.</li>
+    <li><b>PrizePicks</b> (Christian Hardy) — PPR top-200, 8/29. Used in all formats; note it leans PPR.</li>
+    <li><b>FantasyFootballCalculator</b> — half-PPR market rankings from mock drafts, 8/31. Represents the crowd, not an analyst.</li>
+    <li><b>Yahoo ADP</b> and <b>Underdog ADP</b> — via FFToday's ADP table, 8/24. Yahoo defaults to half-PPR, so this is the closest read on your leaguemates' behavior.</li>
+    <li><b>Value vs Yahoo</b> = Yahoo ADP − consensus rank. +12 means the room takes him ~12 picks after consensus says he's worth it.</li>
+    <li><b>Live</b> — FantasyFootballCalculator's public ADP feed for the selected format, fetched on demand. Fails silently if the feed is unreachable from this browser.</li>
+    <li>Not included: JJ Zachariason (Late-Round members hub) and The Ringer (paywalled/embedded). Paste their lists into a message and they can be merged in on the next refresh.</li>
+    <li>Drafted marks and your picks are saved per draft slot and survive closing the app.</li>
+  </ul>
+</details>
+
+<script>
+const DATA = [{"id":"jahmyr gibbs","name":"Jahmyr Gibbs","pos":"RB","team":"DET","bye":6,"r":{"fft_half":1,"fft_ppr":1,"fft_std":1,"udog":1,"yahoo":1,"ffc":1,"pp":1}},{"id":"bijan robinson","name":"Bijan Robinson","pos":"RB","team":"ATL","bye":11,"r":{"fft_half":2,"fft_ppr":2,"fft_std":2,"udog":2,"yahoo":2,"ffc":2,"pp":2}},{"id":"puka nacua","name":"Puka Nacua","pos":"WR","team":"LAR","bye":11,"r":{"fft_half":3,"fft_ppr":3,"fft_std":3,"udog":4,"yahoo":4,"ffc":3,"pp":4}},{"id":"jamarr chase","name":"Ja'Marr Chase","pos":"WR","team":"CIN","bye":6,"r":{"fft_half":4,"fft_ppr":4,"fft_std":5,"udog":3,"yahoo":3,"ffc":4,"pp":3}},{"id":"christian mccaffrey","name":"Christian McCaffrey","pos":"RB","team":"SF","bye":8,"r":{"fft_half":5,"fft_ppr":5,"fft_std":4,"udog":6,"yahoo":5,"ffc":7,"pp":8}},{"id":"jaxon smith-njigba","name":"Jaxon Smith-Njigba","pos":"WR","team":"SEA","bye":11,"r":{"fft_half":6,"fft_ppr":6,"fft_std":6,"udog":5,"yahoo":8,"ffc":5,"pp":5}},{"id":"jonathan taylor","name":"Jonathan Taylor","pos":"RB","team":"IND","bye":13,"r":{"fft_half":7,"fft_ppr":8,"fft_std":7,"udog":8,"yahoo":6,"ffc":6,"pp":7}},{"id":"amon-ra st brown","name":"Amon-Ra St. Brown","pos":"WR","team":"DET","bye":6,"r":{"fft_half":8,"fft_ppr":7,"fft_std":11,"udog":7,"yahoo":7,"ffc":8,"pp":6}},{"id":"james cook","name":"James Cook","pos":"RB","team":"BUF","bye":7,"r":{"fft_half":9,"fft_ppr":9,"fft_std":8,"udog":10,"yahoo":9,"ffc":9,"pp":12}},{"id":"drake london","name":"Drake London","pos":"WR","team":"ATL","bye":11,"r":{"fft_half":10,"fft_ppr":10,"fft_std":12,"udog":21,"yahoo":19,"ffc":13,"pp":20}},{"id":"justin jefferson","name":"Justin Jefferson","pos":"WR","team":"MIN","bye":6,"r":{"fft_half":11,"fft_ppr":12,"fft_std":13,"udog":11,"yahoo":15,"ffc":14,"pp":9}},{"id":"ceedee lamb","name":"CeeDee Lamb","pos":"WR","team":"DAL","bye":14,"r":{"fft_half":12,"fft_ppr":13,"fft_std":18,"udog":9,"yahoo":10,"ffc":12,"pp":11}},{"id":"derrick henry","name":"Derrick Henry","pos":"RB","team":"BAL","bye":13,"r":{"fft_half":13,"fft_ppr":18,"fft_std":9,"udog":18,"yahoo":18,"ffc":10,"pp":23}},{"id":"saquon barkley","name":"Saquon Barkley","pos":"RB","team":"PHI","bye":10,"r":{"fft_half":14,"fft_ppr":14,"fft_std":10,"udog":12,"yahoo":11,"ffc":19,"pp":22}},{"id":"omarion hampton","name":"Omarion Hampton","pos":"RB","team":"LAC","bye":7,"r":{"fft_half":15,"fft_ppr":11,"fft_std":15,"udog":16,"yahoo":17,"ffc":25,"pp":24}},{"id":"devon achane","name":"De'Von Achane","pos":"RB","team":"MIA","bye":6,"r":{"fft_half":16,"fft_ppr":16,"fft_std":17,"udog":17,"yahoo":16,"ffc":11,"pp":14}},{"id":"kenneth walker","name":"Kenneth Walker","pos":"RB","team":"KC","bye":5,"r":{"fft_half":17,"fft_ppr":17,"fft_std":14,"udog":13,"yahoo":12,"ffc":23,"pp":17}},{"id":"chase brown","name":"Chase Brown","pos":"RB","team":"CIN","bye":6,"r":{"fft_half":18,"fft_ppr":15,"fft_std":16,"udog":15,"yahoo":14,"ffc":15,"pp":15}},{"id":"nico collins","name":"Nico Collins","pos":"WR","team":"HOU","bye":8,"r":{"fft_half":19,"fft_ppr":22,"fft_std":19,"udog":22,"yahoo":21,"ffc":20,"pp":13}},{"id":"ashton jeanty","name":"Ashton Jeanty","pos":"RB","team":"LV","bye":13,"r":{"fft_half":20,"fft_ppr":24,"fft_std":22,"udog":14,"yahoo":13,"ffc":24,"pp":33}},{"id":"brock bowers","name":"Brock Bowers","pos":"TE","team":"LV","bye":13,"r":{"fft_half":21,"fft_ppr":23,"fft_std":28,"udog":20,"yahoo":20,"ffc":52,"pp":18}},{"id":"chris olave","name":"Chris Olave","pos":"WR","team":"NO","bye":8,"r":{"fft_half":22,"fft_ppr":19,"fft_std":23,"udog":25,"yahoo":26,"ffc":22,"pp":19}},{"id":"aj brown","name":"A.J. Brown","pos":"WR","team":"NE","bye":11,"r":{"fft_half":23,"fft_ppr":20,"fft_std":21,"udog":19,"yahoo":23,"ffc":17,"pp":10}},{"id":"rashee rice","name":"Rashee Rice","pos":"WR","team":"KC","bye":5,"r":{"fft_half":24,"fft_ppr":21,"fft_std":39,"udog":26,"yahoo":36,"ffc":16,"pp":30}},{"id":"george pickens","name":"George Pickens","pos":"WR","team":"DAL","bye":14,"r":{"fft_half":25,"fft_ppr":30,"fft_std":29,"udog":24,"yahoo":22,"ffc":18,"pp":16}},{"id":"josh allen","name":"Josh Allen","pos":"QB","team":"BUF","bye":7,"r":{"fft_half":26,"fft_ppr":25,"fft_std":26,"udog":37,"yahoo":28,"ffc":39,"pp":32}},{"id":"garrett wilson","name":"Garrett Wilson","pos":"WR","team":"NYJ","bye":13,"r":{"fft_half":27,"fft_ppr":26,"fft_std":43,"udog":39,"yahoo":41,"ffc":30,"pp":27}},{"id":"kyren williams","name":"Kyren Williams","pos":"RB","team":"LAR","bye":11,"r":{"fft_half":28,"fft_ppr":37,"fft_std":20,"udog":30,"yahoo":27,"ffc":27,"pp":37}},{"id":"jeremiyah love","name":"Jeremiyah Love","pos":"RB","team":"ARI","bye":14,"r":{"fft_half":29,"fft_ppr":27,"fft_std":25,"udog":29,"yahoo":34,"ffc":29,"pp":31}},{"id":"trey mcbride","name":"Trey McBride","pos":"TE","team":"ARI","bye":14,"r":{"fft_half":30,"fft_ppr":28,"fft_std":34,"udog":28,"yahoo":29,"ffc":45,"pp":26}},{"id":"devonta smith","name":"DeVonta Smith","pos":"WR","team":"PHI","bye":10,"r":{"fft_half":31,"fft_ppr":33,"fft_std":37,"udog":27,"yahoo":25,"ffc":32,"pp":25}},{"id":"breece hall","name":"Breece Hall","pos":"RB","team":"NYJ","bye":13,"r":{"fft_half":32,"fft_ppr":29,"fft_std":27,"udog":32,"yahoo":32,"ffc":34,"pp":38}},{"id":"drake maye","name":"Drake Maye","pos":"QB","team":"NE","bye":11,"r":{"fft_half":33,"fft_ppr":31,"fft_std":45,"udog":66,"yahoo":61,"ffc":64,"pp":54}},{"id":"lamar jackson","name":"Lamar Jackson","pos":"QB","team":"BAL","bye":13,"r":{"fft_half":34,"fft_ppr":32,"fft_std":46,"udog":56,"yahoo":50,"ffc":68,"pp":44}},{"id":"zay flowers","name":"Zay Flowers","pos":"WR","team":"BAL","bye":13,"r":{"fft_half":35,"fft_ppr":34,"fft_std":31,"udog":31,"yahoo":31,"ffc":21,"pp":34}},{"id":"malik nabers","name":"Malik Nabers","pos":"WR","team":"NYG","bye":8,"r":{"fft_half":36,"fft_ppr":36,"fft_std":35,"udog":23,"yahoo":24,"ffc":26,"pp":21}},{"id":"jameson williams","name":"Jameson Williams","pos":"WR","team":"DET","bye":6,"r":{"fft_half":37,"fft_ppr":44,"fft_std":36,"udog":51,"yahoo":53,"ffc":38,"pp":51}},{"id":"javonte williams","name":"Javonte Williams","pos":"RB","team":"DAL","bye":14,"r":{"fft_half":38,"fft_ppr":39,"fft_std":24,"udog":34,"yahoo":35,"ffc":35,"pp":39}},{"id":"jalen hurts","name":"Jalen Hurts","pos":"QB","team":"PHI","bye":10,"r":{"fft_half":39,"fft_ppr":35,"fft_std":65,"udog":71,"yahoo":65,"ffc":96,"pp":57}},{"id":"joe burrow","name":"Joe Burrow","pos":"QB","team":"CIN","bye":6,"r":{"fft_half":40,"fft_ppr":40,"fft_std":71,"udog":67,"yahoo":63,"ffc":65,"pp":63}},{"id":"davante adams","name":"Davante Adams","pos":"WR","team":"LAR","bye":11,"r":{"fft_half":41,"fft_ppr":43,"fft_std":38,"udog":52,"yahoo":57,"ffc":37,"pp":55}},{"id":"tetairoa mcmillan","name":"Tetairoa McMillan","pos":"WR","team":"CAR","bye":5,"r":{"fft_half":42,"fft_ppr":42,"fft_std":40,"udog":41,"yahoo":37,"ffc":31,"pp":36}},{"id":"cam skattebo","name":"Cam Skattebo","pos":"RB","team":"NYG","bye":8,"r":{"fft_half":43,"fft_ppr":47,"fft_std":30,"udog":46,"yahoo":47,"ffc":41,"pp":60}},{"id":"colston loveland","name":"Colston Loveland","pos":"TE","team":"CHI","bye":10,"r":{"fft_half":44,"fft_ppr":41,"fft_std":42,"udog":43,"yahoo":38,"ffc":80,"pp":49}},{"id":"emeka egbuka","name":"Emeka Egbuka","pos":"WR","team":"TB","bye":10,"r":{"fft_half":45,"fft_ppr":38,"fft_std":41,"udog":36,"yahoo":43,"ffc":36,"pp":45}},{"id":"tee higgins","name":"Tee Higgins","pos":"WR","team":"CIN","bye":6,"r":{"fft_half":46,"fft_ppr":50,"fft_std":47,"udog":35,"yahoo":30,"ffc":33,"pp":35}},{"id":"christian watson","name":"Christian Watson","pos":"WR","team":"GB","bye":11,"r":{"fft_half":47,"fft_ppr":53,"fft_std":48,"udog":57,"yahoo":55,"ffc":50,"pp":40}},{"id":"ladd mcconkey","name":"Ladd McConkey","pos":"WR","team":"LAC","bye":7,"r":{"fft_half":48,"fft_ppr":45,"fft_std":52,"udog":33,"yahoo":39,"ffc":42,"pp":29}},{"id":"jayden daniels","name":"Jayden Daniels","pos":"QB","team":"WAS","bye":7,"r":{"fft_half":49,"fft_ppr":49,"fft_std":73,"udog":68,"yahoo":62,"ffc":91,"pp":69}},{"id":"travis etienne","name":"Travis Etienne","pos":"RB","team":"NO","bye":8,"r":{"fft_half":50,"fft_ppr":48,"fft_std":33,"udog":40,"yahoo":42,"ffc":40,"pp":41}},{"id":"mike evans","name":"Mike Evans","pos":"WR","team":"SF","bye":8,"r":{"fft_half":51,"fft_ppr":55,"fft_std":49,"udog":50,"yahoo":60,"ffc":49}},{"id":"jaylen waddle","name":"Jaylen Waddle","pos":"WR","team":"DEN","bye":10,"r":{"fft_half":52,"fft_ppr":46,"fft_std":54,"udog":38,"yahoo":33,"ffc":44,"pp":28}},{"id":"dj moore","name":"D.J. Moore","pos":"WR","team":"BUF","bye":7,"r":{"fft_half":53,"fft_ppr":54,"fft_std":57,"udog":53,"yahoo":49,"ffc":48,"pp":42}},{"id":"dandre swift","name":"D'Andre Swift","pos":"RB","team":"CHI","bye":10,"r":{"fft_half":54,"fft_ppr":51,"fft_std":32,"udog":44,"yahoo":44,"ffc":46,"pp":50}},{"id":"rome odunze","name":"Rome Odunze","pos":"WR","team":"CHI","bye":10,"r":{"fft_half":55,"fft_ppr":56,"fft_std":50,"udog":59,"yahoo":52,"ffc":47,"pp":56}},{"id":"bhayshul tuten","name":"Bhayshul Tuten","pos":"RB","team":"JAC","bye":7,"r":{"fft_half":56,"fft_ppr":52,"fft_std":44,"udog":49,"yahoo":59,"ffc":60,"pp":46}},{"id":"luther burden","name":"Luther Burden III","pos":"WR","team":"CHI","bye":10,"r":{"fft_half":57,"fft_ppr":58,"fft_std":66,"udog":45,"yahoo":46,"ffc":51,"pp":52}},{"id":"tyler warren","name":"Tyler Warren","pos":"TE","team":"IND","bye":13,"r":{"fft_half":58,"fft_ppr":57,"fft_std":68,"udog":63,"yahoo":48,"ffc":99,"pp":53}},{"id":"terry mclaurin","name":"Terry McLaurin","pos":"WR","team":"WAS","bye":7,"r":{"fft_half":59,"fft_ppr":59,"fft_std":59,"udog":48,"yahoo":45,"ffc":43,"pp":58}},{"id":"dk metcalf","name":"DK Metcalf","pos":"WR","team":"PIT","bye":9,"r":{"fft_half":60,"fft_ppr":61,"fft_std":63,"udog":73,"yahoo":77,"ffc":57,"pp":79}},{"id":"bucky irving","name":"Bucky Irving","pos":"RB","team":"TB","bye":10,"r":{"fft_half":61,"fft_ppr":60,"fft_std":51,"udog":55,"yahoo":58,"ffc":53,"pp":48}},{"id":"quinshon judkins","name":"Quinshon Judkins","pos":"RB","team":"CLE","bye":11,"r":{"fft_half":62,"fft_ppr":62,"fft_std":53,"udog":54,"yahoo":51,"ffc":54,"pp":59}},{"id":"marvin harrison","name":"Marvin Harrison Jr.","pos":"WR","team":"ARI","bye":14,"r":{"fft_half":63,"fft_ppr":63,"fft_std":64,"udog":65,"yahoo":69,"ffc":58,"pp":70}},{"id":"david montgomery","name":"David Montgomery","pos":"RB","team":"HOU","bye":8,"r":{"fft_half":64,"fft_ppr":64,"fft_std":55,"udog":47,"yahoo":54,"ffc":61,"pp":61}},{"id":"michael pittman","name":"Michael Pittman Jr.","pos":"WR","team":"PIT","bye":9,"r":{"fft_half":65,"fft_ppr":66,"fft_std":75,"udog":99,"yahoo":102,"ffc":72,"pp":87}},{"id":"harold fannin","name":"Harold Fannin Jr.","pos":"TE","team":"CLE","bye":11,"r":{"fft_half":66,"fft_ppr":70,"fft_std":77,"udog":105,"yahoo":78,"ffc":103,"pp":67}},{"id":"caleb williams","name":"Caleb Williams","pos":"QB","team":"CHI","bye":10,"r":{"fft_half":67,"fft_ppr":65,"fft_std":81,"udog":72,"yahoo":72,"ffc":98,"pp":115}},{"id":"jaylen warren","name":"Jaylen Warren","pos":"RB","team":"PIT","bye":9,"r":{"fft_half":68,"fft_ppr":68,"fft_std":62,"udog":69,"yahoo":71,"ffc":66,"pp":76}},{"id":"tony pollard","name":"Tony Pollard","pos":"RB","team":"TEN","bye":9,"r":{"fft_half":69,"fft_ppr":72,"fft_std":56,"udog":77,"yahoo":79,"ffc":75,"pp":104}},{"id":"courtland sutton","name":"Courtland Sutton","pos":"WR","team":"DEN","bye":10,"r":{"fft_half":70,"fft_ppr":67,"fft_std":67,"udog":82,"yahoo":98,"ffc":55,"pp":81}},{"id":"jayden reed","name":"Jayden Reed","pos":"WR","team":"GB","bye":11,"r":{"fft_half":71,"fft_ppr":69,"fft_std":74,"udog":78,"yahoo":95,"ffc":74,"pp":94}},{"id":"kyle pitts","name":"Kyle Pitts","pos":"TE","team":"ATL","bye":11,"r":{"fft_half":72,"fft_ppr":71,"fft_std":84,"udog":101,"yahoo":83,"ffc":117,"pp":68}},{"id":"alec pierce","name":"Alec Pierce","pos":"WR","team":"IND","bye":13,"r":{"fft_half":73,"fft_ppr":73,"fft_std":70,"udog":94,"yahoo":99,"ffc":56,"pp":108}},{"id":"rhamondre stevenson","name":"Rhamondre Stevenson","pos":"RB","team":"NE","bye":11,"r":{"fft_half":74,"fft_ppr":74,"fft_std":60,"udog":70,"yahoo":68,"ffc":69,"pp":65}},{"id":"carnell tate","name":"Carnell Tate","pos":"WR","team":"TEN","bye":9,"r":{"fft_half":75,"fft_ppr":75,"fft_std":76,"udog":62,"yahoo":74,"ffc":67,"pp":78}},{"id":"treveyon henderson","name":"TreVeyon Henderson","pos":"RB","team":"NE","bye":11,"r":{"fft_half":76,"fft_ppr":76,"fft_std":61,"udog":60,"yahoo":66,"ffc":71,"pp":64}},{"id":"jadarian price","name":"Jadarian Price","pos":"RB","team":"SEA","bye":11,"r":{"fft_half":77,"fft_ppr":78,"fft_std":69,"udog":61,"yahoo":64,"ffc":89,"pp":47}},{"id":"dak prescott","name":"Dak Prescott","pos":"QB","team":"DAL","bye":14,"r":{"fft_half":78,"fft_ppr":79,"fft_std":83,"udog":79,"yahoo":82,"ffc":83,"pp":75}},{"id":"parker washington","name":"Parker Washington","pos":"WR","team":"JAC","bye":7,"r":{"fft_half":79,"fft_ppr":84,"fft_std":80,"udog":58,"yahoo":56,"ffc":59,"pp":43}},{"id":"sam laporta","name":"Sam LaPorta","pos":"TE","team":"DET","bye":6,"r":{"fft_half":80,"fft_ppr":83,"fft_std":93,"udog":92,"yahoo":70,"ffc":127,"pp":62}},{"id":"chuba hubbard","name":"Chuba Hubbard","pos":"RB","team":"CAR","bye":5,"r":{"fft_half":81,"fft_ppr":91,"fft_std":78,"udog":97,"yahoo":96,"ffc":97,"pp":88}},{"id":"jakobi meyers","name":"Jakobi Meyers","pos":"WR","team":"JAC","bye":7,"r":{"fft_half":82,"fft_ppr":77,"fft_std":90,"udog":119,"yahoo":120,"ffc":73,"pp":144}},{"id":"bo nix","name":"Bo Nix","pos":"QB","team":"DEN","bye":10,"r":{"fft_half":83,"fft_ppr":85,"fft_std":85,"udog":106,"yahoo":100,"ffc":112,"pp":101}},{"id":"travis kelce","name":"Travis Kelce","pos":"TE","team":"KC","bye":5,"r":{"fft_half":84,"fft_ppr":80,"fft_std":111,"udog":123,"yahoo":118,"pp":124}},{"id":"chris godwin","name":"Chris Godwin","pos":"WR","team":"TB","bye":10,"r":{"fft_half":85,"fft_ppr":82,"fft_std":86,"udog":85,"yahoo":86,"ffc":70,"pp":84}},{"id":"brian thomas","name":"Brian Thomas Jr.","pos":"WR","team":"JAC","bye":7,"r":{"fft_half":86,"fft_ppr":88,"fft_std":79,"udog":64,"yahoo":73,"ffc":62,"pp":86}},{"id":"michael wilson","name":"Michael Wilson","pos":"WR","team":"ARI","bye":14,"r":{"fft_half":87,"fft_ppr":87,"fft_std":100,"udog":90,"yahoo":85,"ffc":63,"pp":99}},{"id":"xavier worthy","name":"Xavier Worthy","pos":"WR","team":"KC","bye":5,"r":{"fft_half":88,"fft_ppr":94,"fft_std":88,"udog":107,"yahoo":127,"ffc":85,"pp":129}},{"id":"mark andrews","name":"Mark Andrews","pos":"TE","team":"BAL","bye":13,"r":{"fft_half":89,"fft_ppr":95,"fft_std":99,"udog":132,"yahoo":128,"ffc":130,"pp":141}},{"id":"justin herbert","name":"Justin Herbert","pos":"QB","team":"LAC","bye":7,"r":{"fft_half":90,"fft_ppr":89,"fft_std":89,"udog":83,"yahoo":75,"ffc":109,"pp":89}},{"id":"brock purdy","name":"Brock Purdy","pos":"QB","team":"SF","bye":8,"r":{"fft_half":91,"fft_ppr":90,"fft_std":91,"udog":103,"yahoo":97,"ffc":95,"pp":123}},{"id":"jk dobbins","name":"J.K. Dobbins","pos":"RB","team":"DEN","bye":10,"r":{"fft_half":92,"fft_ppr":92,"fft_std":58,"udog":95,"yahoo":84,"ffc":94,"pp":95}},{"id":"marshawn lloyd","name":"MarShawn Lloyd","pos":"RB","team":"GB","bye":11,"r":{"fft_half":93,"fft_ppr":81,"fft_std":72,"udog":151,"yahoo":141,"pp":82}},{"id":"jaxson dart","name":"Jaxson Dart","pos":"QB","team":"NYG","bye":8,"r":{"fft_half":94,"fft_ppr":93,"fft_std":92,"udog":104,"yahoo":103,"ffc":119,"pp":80}},{"id":"rachaad white","name":"Rachaad White","pos":"RB","team":"WAS","bye":7,"r":{"fft_half":95,"fft_ppr":96,"fft_std":94,"udog":118,"yahoo":111,"pp":113}},{"id":"rico dowdle","name":"Rico Dowdle","pos":"RB","team":"PIT","bye":9,"r":{"fft_half":96,"fft_ppr":97,"fft_std":82,"udog":84,"yahoo":80,"ffc":79,"pp":83}},{"id":"wandale robinson","name":"Wan'Dale Robinson","pos":"WR","team":"TEN","bye":9,"r":{"fft_half":97,"fft_ppr":86,"fft_std":120,"udog":113,"yahoo":121,"ffc":82,"pp":97}},{"id":"josh downs","name":"Josh Downs","pos":"WR","team":"IND","bye":13,"r":{"fft_half":98,"fft_ppr":101,"fft_std":109,"udog":81,"yahoo":90,"ffc":81,"pp":74}},{"id":"stefon diggs","name":"Stefon Diggs","pos":"WR","team":"WAS","bye":7,"r":{"fft_half":99,"fft_ppr":100,"fft_std":103,"udog":93,"yahoo":87,"ffc":84,"pp":66}},{"id":"romeo doubs","name":"Romeo Doubs","pos":"WR","team":"NE","bye":11,"r":{"fft_half":100,"fft_ppr":99,"fft_std":98,"udog":120,"yahoo":122,"ffc":87,"pp":118}},{"id":"khalil shakir","name":"Khalil Shakir","pos":"WR","team":"BUF","bye":7,"r":{"fft_half":101,"fft_ppr":98,"fft_std":110,"udog":131,"yahoo":139,"ffc":90,"pp":127}},{"id":"jordan addison","name":"Jordan Addison","pos":"WR","team":"MIN","bye":6,"r":{"fft_half":102,"fft_ppr":102,"fft_std":102,"udog":89,"yahoo":94,"ffc":78,"pp":73}},{"id":"tucker kraft","name":"Tucker Kraft","pos":"TE","team":"GB","bye":11,"r":{"fft_half":103,"fft_ppr":103,"fft_std":101,"udog":76,"yahoo":67,"ffc":115,"pp":71}},{"id":"quentin johnston","name":"Quentin Johnston","pos":"WR","team":"LAC","bye":7,"r":{"fft_half":104,"fft_ppr":104,"fft_std":96,"udog":74,"yahoo":92,"ffc":76,"pp":100}},{"id":"dallas goedert","name":"Dallas Goedert","pos":"TE","team":"PHI","bye":10,"r":{"fft_half":105,"fft_ppr":114,"fft_std":113,"udog":134,"yahoo":116,"ffc":128,"pp":107}},{"id":"matthew golden","name":"Matthew Golden","pos":"WR","team":"GB","bye":11,"r":{"fft_half":106,"fft_ppr":109,"fft_std":105,"udog":102,"yahoo":105,"ffc":88,"pp":72}},{"id":"jonathon brooks","name":"Jonathon Brooks","pos":"RB","team":"CAR","bye":5,"r":{"fft_half":107,"fft_ppr":106,"fft_std":118,"udog":75,"yahoo":76,"ffc":108,"pp":103}},{"id":"rj harvey","name":"RJ Harvey","pos":"RB","team":"DEN","bye":10,"r":{"fft_half":108,"fft_ppr":107,"fft_std":121,"udog":88,"yahoo":109,"ffc":124,"pp":111}},{"id":"jacory croskey-merritt","name":"Jacory Croskey-Merritt","pos":"RB","team":"WAS","bye":7,"r":{"fft_half":109,"fft_ppr":111,"fft_std":87,"udog":100,"yahoo":88,"ffc":118,"pp":106}},{"id":"blake corum","name":"Blake Corum","pos":"RB","team":"LAR","bye":11,"r":{"fft_half":110,"fft_ppr":112,"fft_std":107,"udog":87,"yahoo":91,"pp":98}},{"id":"kyle monangai","name":"Kyle Monangai","pos":"RB","team":"CHI","bye":10,"r":{"fft_half":111,"fft_ppr":119,"fft_std":116,"udog":108,"yahoo":108,"ffc":120,"pp":110}},{"id":"aaron jones","name":"Aaron Jones","pos":"RB","team":"MIN","bye":6,"r":{"fft_half":112,"fft_ppr":108,"fft_std":123,"udog":128,"yahoo":125,"ffc":122,"pp":114}},{"id":"kc concepcion","name":"KC Concepcion","pos":"WR","team":"CLE","bye":11,"r":{"fft_half":113,"fft_ppr":113,"fft_std":125,"udog":112,"yahoo":104,"ffc":104,"pp":77}},{"id":"george kittle","name":"George Kittle","pos":"TE","team":"SF","bye":8,"r":{"fft_half":114,"fft_ppr":129,"fft_std":115,"udog":114,"yahoo":93,"ffc":116,"pp":96}},{"id":"jared goff","name":"Jared Goff","pos":"QB","team":"DET","bye":6,"r":{"fft_half":115,"fft_ppr":115,"fft_std":95,"udog":111,"yahoo":119,"ffc":105,"pp":133}},{"id":"makai lemon","name":"Makai Lemon","pos":"WR","team":"PHI","bye":10,"r":{"fft_half":116,"fft_ppr":118,"fft_std":131,"udog":80,"yahoo":107,"pp":93}},{"id":"trevor lawrence","name":"Trevor Lawrence","pos":"QB","team":"JAC","bye":7,"r":{"fft_half":117,"fft_ppr":117,"fft_std":97,"udog":86,"yahoo":81,"ffc":102,"pp":90}},{"id":"dezhaun stribling","name":"De'Zhaun Stribling","pos":"WR","team":"SF","bye":8,"r":{"fft_half":118,"fft_ppr":116,"fft_std":114,"udog":115,"yahoo":89,"pp":85}},{"id":"jordan mason","name":"Jordan Mason","pos":"RB","team":"MIN","bye":6,"r":{"fft_half":119,"fft_ppr":122,"fft_std":112,"udog":98,"yahoo":101,"ffc":129,"pp":102}},{"id":"matthew stafford","name":"Matthew Stafford","pos":"QB","team":"LAR","bye":11,"r":{"fft_half":120,"fft_ppr":120,"fft_std":104,"udog":110,"yahoo":113,"ffc":93,"pp":121}},{"id":"patrick mahomes","name":"Patrick Mahomes","pos":"QB","team":"KC","bye":5,"r":{"fft_half":121,"fft_ppr":121,"fft_std":106,"udog":96,"yahoo":117,"ffc":106,"pp":142}},{"id":"josh jacobs","name":"Josh Jacobs","pos":"RB","team":"GB","bye":11,"r":{"fft_half":122,"fft_ppr":125,"fft_std":122,"udog":42,"yahoo":40,"ffc":28,"pp":92}},{"id":"rashid shaheed","name":"Rashid Shaheed","pos":"WR","team":"SEA","bye":11,"r":{"fft_half":123,"fft_ppr":123,"fft_std":126,"udog":135,"yahoo":131,"ffc":107,"pp":126}},{"id":"jordyn tyson","name":"Jordyn Tyson","pos":"WR","team":"NO","bye":8,"r":{"fft_half":124,"fft_ppr":128,"fft_std":134,"udog":91,"yahoo":124,"pp":125}},{"id":"kenneth gainwell","name":"Kenneth Gainwell","pos":"RB","team":"TB","bye":10,"r":{"fft_half":125,"fft_ppr":110,"fft_std":133,"udog":109,"yahoo":114,"ffc":114,"pp":131}},{"id":"alvin kamara","name":"Alvin Kamara","pos":"RB","team":"NO","bye":8,"r":{"fft_half":126,"fft_ppr":126,"fft_std":143,"udog":178,"yahoo":177,"pp":172}},{"id":"woody marks","name":"Woody Marks","pos":"RB","team":"HOU","bye":8,"r":{"fft_half":127,"fft_ppr":127,"fft_std":141,"udog":137,"yahoo":142,"pp":128}},{"id":"deebo samuel","name":"Deebo Samuel","pos":"WR","team":"SF","bye":8,"r":{"fft_half":128,"fft_ppr":124,"fft_std":132,"udog":126,"yahoo":147,"ffc":92,"pp":146}},{"id":"jake ferguson","name":"Jake Ferguson","pos":"TE","team":"DAL","bye":14,"r":{"fft_half":129,"fft_ppr":105,"fft_std":129,"udog":136,"yahoo":145,"pp":120}},{"id":"dalton kincaid","name":"Dalton Kincaid","pos":"TE","team":"BUF","bye":7,"r":{"fft_half":130,"fft_ppr":135,"fft_std":124,"udog":121,"yahoo":106,"pp":91}},{"id":"chris rodriguez","name":"Chris Rodriguez Jr.","pos":"RB","team":"JAC","bye":7,"r":{"fft_half":131,"fft_ppr":153,"fft_std":137,"udog":124,"yahoo":115,"pp":105}},{"id":"jerry jeudy","name":"Jerry Jeudy","pos":"WR","team":"CLE","bye":11,"r":{"fft_half":132,"fft_ppr":132,"fft_std":135,"udog":201,"yahoo":196,"ffc":111}},{"id":"keenan allen","name":"Keenan Allen","pos":"WR","team":"IND","bye":13,"r":{"fft_half":133,"fft_ppr":133,"fft_std":145,"udog":164,"yahoo":144,"pp":130}},{"id":"tre tucker","name":"Tre Tucker","pos":"WR","team":"LV","bye":13,"r":{"fft_half":134,"fft_ppr":134,"fft_std":139,"udog":153,"yahoo":184,"ffc":123,"pp":138}},{"id":"hunter henry","name":"Hunter Henry","pos":"TE","team":"NE","bye":11,"r":{"fft_half":135,"fft_ppr":142,"fft_std":127,"udog":152,"yahoo":160,"pp":175}},{"id":"tyler shough","name":"Tyler Shough","pos":"QB","team":"NO","bye":8,"r":{"fft_half":136,"fft_ppr":136,"fft_std":108,"udog":125,"yahoo":136,"pp":143}},{"id":"jalen mcmillan","name":"Jalen McMillan","pos":"WR","team":"TB","bye":10,"r":{"fft_half":137,"fft_ppr":138,"fft_std":144,"udog":158,"yahoo":150,"pp":179}},{"id":"rashod bateman","name":"Rashod Bateman","pos":"WR","team":"BAL","bye":13,"r":{"fft_half":138,"fft_ppr":139,"fft_std":147,"udog":212,"yahoo":221}},{"id":"jalen coker","name":"Jalen Coker","pos":"WR","team":"CAR","bye":5,"r":{"fft_half":139,"fft_ppr":137,"fft_std":146,"udog":129,"yahoo":112,"ffc":101,"pp":112}},{"id":"kyler murray","name":"Kyler Murray","pos":"QB","team":"MIN","bye":6,"r":{"fft_half":140,"fft_ppr":140,"fft_std":117,"udog":116,"yahoo":110,"pp":109}},{"id":"calvin ridley","name":"Calvin Ridley","pos":"WR","team":"TEN","bye":9,"r":{"fft_half":141,"fft_ppr":141,"fft_std":152,"udog":203,"yahoo":215}},{"id":"isaiah likely","name":"Isaiah Likely","pos":"TE","team":"NYG","bye":8,"r":{"fft_half":142,"fft_ppr":144,"fft_std":130,"udog":127,"yahoo":123,"pp":116}},{"id":"tyjae spears","name":"Tyjae Spears","pos":"RB","team":"TEN","bye":9,"r":{"fft_half":143,"fft_ppr":143,"fft_std":148,"udog":157,"yahoo":137,"pp":186}},{"id":"dalton schultz","name":"Dalton Schultz","pos":"TE","team":"HOU","bye":8,"r":{"fft_half":144,"fft_ppr":130,"fft_std":162,"udog":163,"yahoo":158}},{"id":"dylan sampson","name":"Dylan Sampson","pos":"RB","team":"CLE","bye":11,"r":{"fft_half":145,"fft_ppr":145,"fft_std":150,"udog":173,"yahoo":181,"pp":157}},{"id":"juwan johnson","name":"Juwan Johnson","pos":"TE","team":"NO","bye":8,"r":{"fft_half":146,"fft_ppr":146,"fft_std":158,"udog":141,"yahoo":133,"pp":119}},{"id":"malik willis","name":"Malik Willis","pos":"QB","team":"MIA","bye":6,"r":{"fft_half":147,"fft_ppr":147,"fft_std":119,"udog":133,"yahoo":129,"pp":145}},{"id":"adonai mitchell","name":"Adonai Mitchell","pos":"WR","team":"NYJ","bye":13,"r":{"fft_half":148,"fft_ppr":148,"fft_std":151,"udog":171,"yahoo":146,"pp":187}},{"id":"germie bernard","name":"Germie Bernard","pos":"WR","team":"PIT","bye":9,"r":{"fft_half":149,"fft_ppr":149,"fft_std":164}},{"id":"jalen nailor","name":"Jalen Nailor","pos":"WR","team":"LV","bye":13,"r":{"fft_half":150,"fft_ppr":150,"fft_std":165,"udog":147,"yahoo":152,"pp":184}},{"id":"malik washington","name":"Malik Washington","pos":"WR","team":"MIA","bye":6,"r":{"fft_half":151,"fft_ppr":151,"fft_std":185,"udog":174,"yahoo":198}},{"id":"ryan flournoy","name":"Ryan Flournoy","pos":"WR","team":"DAL","bye":14,"r":{"fft_half":152,"fft_ppr":152,"fft_std":187,"udog":169,"yahoo":166,"pp":182}},{"id":"zach charbonnet","name":"Zach Charbonnet","pos":"RB","team":"SEA","bye":11,"r":{"fft_half":153,"fft_ppr":131,"fft_std":142,"udog":162,"yahoo":143,"pp":185}},{"id":"caleb douglas","name":"Caleb Douglas","pos":"WR","team":"MIA","bye":6,"r":{"fft_half":154,"fft_ppr":168,"fft_std":186,"udog":179,"yahoo":195}},{"id":"tank bigsby","name":"Tank Bigsby","pos":"RB","team":"PHI","bye":10,"r":{"fft_half":155,"fft_ppr":176,"fft_std":153,"udog":150,"yahoo":135,"pp":174}},{"id":"pat freiermuth","name":"Pat Freiermuth","pos":"TE","team":"PIT","bye":9,"r":{"fft_half":156,"fft_ppr":156,"fft_std":136}},{"id":"brian robinson","name":"Brian Robinson Jr.","pos":"RB","team":"ATL","bye":11,"r":{"fft_half":157,"fft_ppr":157,"fft_std":149,"udog":184,"yahoo":154,"pp":197}},{"id":"tyler allgeier","name":"Tyler Allgeier","pos":"RB","team":"ARI","bye":14,"r":{"fft_half":158,"fft_ppr":161,"fft_std":154,"udog":139,"yahoo":138,"pp":117}},{"id":"greg dulcich","name":"Greg Dulcich","pos":"TE","team":"MIA","bye":6,"r":{"fft_half":159,"fft_ppr":159,"fft_std":156,"udog":188,"yahoo":189,"pp":199}},{"id":"brenton strange","name":"Brenton Strange","pos":"TE","team":"JAC","bye":7,"r":{"fft_half":160,"fft_ppr":160,"fft_std":163,"udog":149,"yahoo":159}},{"id":"justice hill","name":"Justice Hill","pos":"RB","team":"BAL","bye":13,"r":{"fft_half":161,"fft_ppr":158,"fft_std":161,"pp":196}},{"id":"sam darnold","name":"Sam Darnold","pos":"QB","team":"SEA","bye":11,"r":{"fft_half":162,"fft_ppr":162,"fft_std":128,"udog":140,"yahoo":156,"pp":177}},{"id":"baker mayfield","name":"Baker Mayfield","pos":"QB","team":"TB","bye":10,"r":{"fft_half":163,"fft_ppr":163,"fft_std":138,"udog":122,"yahoo":132,"pp":176}},{"id":"jordan love","name":"Jordan Love","pos":"QB","team":"GB","bye":11,"r":{"fft_half":164,"fft_ppr":164,"fft_std":140,"udog":117,"yahoo":130,"pp":134}},{"id":"isiah pacheco","name":"Isiah Pacheco","pos":"RB","team":"DET","bye":6,"r":{"fft_half":165,"fft_ppr":165,"fft_std":155,"udog":182,"yahoo":183,"pp":180}},{"id":"keaton mitchell","name":"Keaton Mitchell","pos":"RB","team":"LAC","bye":7,"r":{"fft_half":166,"fft_ppr":166,"fft_std":167,"udog":130,"yahoo":126,"pp":122}},{"id":"denzel boston","name":"Denzel Boston","pos":"WR","team":"CLE","bye":11,"r":{"fft_half":167,"fft_ppr":167,"fft_std":190,"udog":138,"yahoo":134,"pp":139}},{"id":"jauan jennings","name":"Jauan Jennings","pos":"WR","team":"MIN","bye":6,"r":{"fft_half":168,"fft_ppr":154,"fft_std":191,"udog":168,"yahoo":206}},{"id":"isaac teslaa","name":"Isaac TeSlaa","pos":"WR","team":"DET","bye":6,"r":{"fft_half":169,"fft_ppr":170,"fft_std":192,"udog":194,"yahoo":219}},{"id":"travis hunter","name":"Travis Hunter","pos":"WR","team":"JAC","bye":7,"r":{"fft_half":170,"fft_ppr":172,"fft_std":199,"udog":154,"yahoo":153,"pp":173}},{"id":"tyrone tracy","name":"Tyrone Tracy Jr.","pos":"RB","team":"NYG","bye":8,"r":{"fft_half":171,"fft_ppr":155,"fft_std":170,"udog":145,"yahoo":161}},{"id":"xavier legette","name":"Xavier Legette","pos":"WR","team":"CAR","bye":5,"r":{"fft_half":172,"fft_ppr":174,"fft_std":212}},{"id":"cooper kupp","name":"Cooper Kupp","pos":"WR","team":"SEA","bye":11,"r":{"fft_half":173,"fft_ppr":175,"fft_std":200,"udog":216,"yahoo":237}},{"id":"devaughn vele","name":"Devaughn Vele","pos":"WR","team":"NO","bye":8,"r":{"fft_half":174,"fft_ppr":173,"fft_std":201,"udog":189,"yahoo":199}},{"id":"kayshon boutte","name":"Kayshon Boutte","pos":"WR","team":"HOU","bye":8,"r":{"fft_half":175,"fft_ppr":184,"fft_std":208,"udog":207,"yahoo":236,"pp":193}},{"id":"braelon allen","name":"Braelon Allen","pos":"RB","team":"NYJ","bye":13,"r":{"fft_half":176,"fft_ppr":171,"fft_std":157,"udog":186,"yahoo":172}},{"id":"ray davis","name":"Ray Davis","pos":"RB","team":"BUF","bye":7,"r":{"fft_half":177,"fft_ppr":177,"fft_std":159,"udog":187,"yahoo":171}},{"id":"omar cooper","name":"Omar Cooper Jr.","pos":"WR","team":"NYJ","bye":13,"r":{"fft_half":178,"fft_ppr":199,"fft_std":193,"udog":167,"yahoo":204,"pp":178}},{"id":"xavier hutchinson","name":"Xavier Hutchinson","pos":"WR","team":"HOU","bye":8,"r":{"fft_half":179,"fft_ppr":169}},{"id":"mike washington","name":"Mike Washington Jr.","pos":"RB","team":"LV","bye":13,"r":{"fft_half":180,"fft_ppr":191,"fft_std":172,"udog":148,"yahoo":148,"pp":135}},{"id":"darius slayton","name":"Darius Slayton","pos":"WR","team":"NYG","bye":8,"r":{"fft_half":181,"fft_ppr":178}},{"id":"kimani vidal","name":"Kimani Vidal","pos":"RB","team":"LAC","bye":7,"r":{"fft_half":182,"fft_ppr":185,"fft_std":168,"udog":210,"yahoo":247}},{"id":"tre harris","name":"Tre Harris","pos":"WR","team":"LAC","bye":7,"r":{"fft_half":183,"fft_ppr":181,"fft_std":209,"udog":159,"yahoo":180,"pp":189}},{"id":"dontayvion wicks","name":"Dontayvion Wicks","pos":"WR","team":"PHI","bye":10,"r":{"fft_half":184,"fft_ppr":198,"fft_std":210,"udog":160,"yahoo":163,"pp":195}},{"id":"sean tucker","name":"Sean Tucker","pos":"RB","team":"TB","bye":10,"r":{"fft_half":185,"fft_ppr":204,"fft_std":178,"udog":204,"yahoo":242}},{"id":"def_DEN","name":"Broncos D/ST","pos":"DEF","team":"DEN","bye":10,"r":{"fft_half":186,"fft_ppr":186,"fft_std":169,"yahoo":165,"ffc":86,"pp":150}},{"id":"def_HOU","name":"Texans D/ST","pos":"DEF","team":"HOU","bye":8,"r":{"fft_half":187,"fft_ppr":187,"fft_std":180,"yahoo":151,"ffc":100,"pp":148}},{"id":"jonah coleman","name":"Jonah Coleman","pos":"RB","team":"DEN","bye":10,"r":{"fft_half":188,"fft_ppr":194,"fft_std":173,"udog":143,"yahoo":140,"pp":140}},{"id":"tj hockenson","name":"T.J. Hockenson","pos":"TE","team":"MIN","bye":6,"r":{"fft_half":189,"fft_ppr":189,"fft_std":175,"udog":170,"yahoo":197}},{"id":"terrance ferguson","name":"Terrance Ferguson","pos":"TE","team":"LAR","bye":11,"r":{"fft_half":190,"fft_std":171,"udog":161,"yahoo":185,"pp":198}},{"id":"malik davis","name":"Malik Davis","pos":"RB","team":"DAL","bye":14,"r":{"fft_half":191,"fft_ppr":200,"fft_std":174}},{"id":"def_SEA","name":"Seahawks D/ST","pos":"DEF","team":"SEA","bye":11,"r":{"fft_half":192,"fft_ppr":192,"fft_std":188,"yahoo":168,"ffc":77,"pp":153}},{"id":"brandon aubrey","name":"Brandon Aubrey","pos":"K","team":"DAL","bye":14,"r":{"fft_half":193,"fft_ppr":193,"fft_std":177,"yahoo":164,"pp":132}},{"id":"samaje perine","name":"Samaje Perine","pos":"RB","team":"CIN","bye":6,"r":{"fft_half":194,"fft_ppr":180,"fft_std":183}},{"id":"cameron dicker","name":"Cameron Dicker","pos":"K","team":"LAC","bye":7,"r":{"fft_half":195,"fft_ppr":195,"fft_std":181,"yahoo":188,"pp":151}},{"id":"chigoziem okonkwo","name":"Chigoziem Okonkwo","pos":"TE","team":"WAS","bye":7,"r":{"fft_half":196,"fft_ppr":190,"fft_std":176,"udog":146,"yahoo":149,"pp":192}},{"id":"def_MIN","name":"Vikings D/ST","pos":"DEF","team":"MIN","bye":6,"r":{"fft_half":197,"fft_ppr":197,"fft_std":194,"yahoo":182,"ffc":113,"pp":154}},{"id":"tyquan thornton","name":"Tyquan Thornton","pos":"WR","team":"KC","bye":5,"r":{"fft_half":198,"fft_ppr":205,"udog":229,"yahoo":233}},{"id":"pat bryant","name":"Pat Bryant","pos":"WR","team":"DEN","bye":10,"r":{"fft_half":199,"fft_ppr":183,"fft_std":214,"udog":172,"yahoo":173}},{"id":"ty johnson","name":"Ty Johnson","pos":"RB","team":"BUF","bye":7,"r":{"fft_half":200,"fft_ppr":188,"fft_std":202}},{"id":"def_PIT","name":"Steelers D/ST","pos":"DEF","team":"PIT","bye":9,"r":{"fft_half":201,"fft_ppr":201,"fft_std":197,"yahoo":193,"pp":171}},{"id":"kaimi fairbairn","name":"Ka'imi Fairbairn","pos":"K","team":"HOU","bye":8,"r":{"fft_half":202,"fft_ppr":202,"fft_std":182,"yahoo":176,"pp":137}},{"id":"def_LAR","name":"Rams D/ST","pos":"DEF","team":"LAR","bye":11,"r":{"fft_half":203,"fft_ppr":203,"fft_std":205,"yahoo":162,"ffc":110,"pp":149}},{"id":"george holani","name":"George Holani","pos":"RB","team":"SEA","bye":11,"r":{"fft_half":204,"fft_ppr":182,"fft_std":179,"udog":223,"yahoo":209}},{"id":"jaylin noel","name":"Jaylin Noel","pos":"WR","team":"HOU","bye":8,"r":{"fft_half":205,"fft_ppr":179,"udog":197,"yahoo":200}},{"id":"def_LAC","name":"Chargers D/ST","pos":"DEF","team":"LAC","bye":7,"r":{"fft_half":206,"fft_ppr":206,"fft_std":206,"yahoo":211,"pp":162}},{"id":"daniel jones","name":"Daniel Jones","pos":"QB","team":"IND","bye":13,"r":{"fft_half":207,"fft_ppr":207,"fft_std":160,"udog":142,"yahoo":157,"pp":191}},{"id":"cj stroud","name":"C.J. Stroud","pos":"QB","team":"HOU","bye":8,"r":{"fft_half":208,"fft_ppr":208,"fft_std":166,"udog":144,"yahoo":170,"pp":190}},{"id":"jason myers","name":"Jason Myers","pos":"K","team":"SEA","bye":11,"r":{"fft_half":209,"fft_ppr":209,"fft_std":195,"yahoo":187,"pp":152}},{"id":"wil lutz","name":"Wil Lutz","pos":"K","team":"DEN","bye":10,"r":{"fft_half":210,"fft_ppr":210,"fft_std":196,"yahoo":227}},{"id":"def_PHI","name":"Eagles D/ST","pos":"DEF","team":"PHI","bye":10,"r":{"fft_half":211,"fft_ppr":211,"fft_std":207,"yahoo":175,"ffc":125,"pp":155}},{"id":"def_NE","name":"Patriots D/ST","pos":"DEF","team":"NE","bye":11,"r":{"fft_half":212,"fft_ppr":212,"fft_std":213,"yahoo":190,"ffc":121,"pp":164}},{"id":"def_DET","name":"Lions D/ST","pos":"DEF","team":"DET","bye":6,"r":{"fft_half":213,"fft_ppr":213,"fft_std":215,"yahoo":239,"ffc":126}},{"id":"jaylen wright","name":"Jaylen Wright","pos":"RB","team":"MIA","bye":6,"r":{"fft_half":214,"fft_ppr":215,"fft_std":189}},{"id":"seth mcgowan","name":"Seth McGowan","pos":"RB","team":"IND","bye":13,"r":{"fft_half":215,"fft_ppr":218,"fft_std":184}},{"id":"def_BUF","name":"Bills D/ST","pos":"DEF","team":"BUF","bye":7,"r":{"fft_half":216,"fft_ppr":216,"fft_std":216,"yahoo":240}},{"id":"chase mclaughlin","name":"Chase McLaughlin","pos":"K","team":"TB","bye":10,"r":{"fft_half":217,"fft_ppr":217,"fft_std":203,"yahoo":246}},{"id":"emari demercado","name":"Emari Demercado","pos":"RB","team":"KC","bye":5,"r":{"fft_half":218,"fft_ppr":214,"fft_std":223}},{"id":"def_JAC","name":"Jaguars D/ST","pos":"DEF","team":"JAC","bye":7,"r":{"fft_half":219,"fft_ppr":219,"fft_std":221,"yahoo":191,"pp":156}},{"id":"harrison butker","name":"Harrison Butker","pos":"K","team":"KC","bye":5,"r":{"fft_half":220,"fft_ppr":220,"fft_std":204}},{"id":"eddy pineiro","name":"Eddy Pineiro","pos":"K","team":"SF","bye":8,"r":{"fft_half":221,"fft_ppr":221,"fft_std":219,"yahoo":213,"pp":167}},{"id":"tyler loop","name":"Tyler Loop","pos":"K","team":"BAL","bye":13,"r":{"fft_half":222,"fft_ppr":222,"fft_std":220,"yahoo":202,"pp":160}},{"id":"jake bates","name":"Jake Bates","pos":"K","team":"DET","bye":6,"r":{"fft_half":223,"fft_ppr":223,"fft_std":222,"yahoo":234,"pp":159}},{"id":"cam little","name":"Cam Little","pos":"K","team":"JAC","bye":7,"r":{"fft_half":224,"fft_ppr":224,"fft_std":224,"yahoo":192,"pp":158}},{"id":"will reichard","name":"Will Reichard","pos":"K","team":"MIN","bye":6,"r":{"fft_half":225,"fft_ppr":225,"fft_std":225,"yahoo":212,"pp":168}},{"id":"aj barner","name":"AJ Barner","pos":"TE","team":"SEA","bye":11,"r":{"fft_ppr":196,"udog":177,"yahoo":178}},{"id":"emmett johnson","name":"Emmett Johnson","pos":"RB","team":"KC","bye":5,"r":{"fft_std":198,"udog":192,"yahoo":155,"pp":136}},{"id":"jakobi lane","name":"Ja'Kobi Lane","pos":"WR","team":"BAL","bye":13,"r":{"fft_std":211,"udog":155,"yahoo":186}},{"id":"jordan james","name":"Jordan James","pos":"RB","team":"SF","bye":8,"r":{"fft_std":217}},{"id":"isaiah davis","name":"Isaiah Davis","pos":"RB","team":"NYJ","bye":13,"r":{"fft_std":218,"udog":251,"yahoo":214}},{"id":"bryce young","name":"Bryce Young","pos":"QB","team":"CAR","bye":null,"r":{"udog":165,"yahoo":169}},{"id":"cam ward","name":"Cam Ward","pos":"QB","team":"TEN","bye":null,"r":{"udog":156,"yahoo":179}},{"id":"cyrus allen","name":"Cyrus Allen","pos":"WR","team":"KC","bye":null,"r":{"udog":166,"yahoo":174}},{"id":"jaydon blue","name":"Jaydon Blue","pos":"RB","team":"DAL","bye":null,"r":{"udog":175,"yahoo":167,"pp":188}},{"id":"kenyon sadiq","name":"Kenyon Sadiq","pos":"TE","team":"NYJ","bye":null,"r":{"udog":181,"yahoo":201,"pp":181}},{"id":"oronde gadsden","name":"Oronde Gadsden","pos":"TE","team":"LAC","bye":null,"r":{"udog":180,"yahoo":208}},{"id":"fernando mendoza","name":"Fernando Mendoza","pos":"QB","team":"LV","bye":null,"r":{"udog":185,"yahoo":218}},{"id":"kaelon black","name":"Kaelon Black","pos":"RB","team":"SF","bye":null,"r":{"udog":198,"yahoo":205}},{"id":"nicholas singleton","name":"Nicholas Singleton","pos":"RB","team":"TEN","bye":null,"r":{"udog":211,"yahoo":194}},{"id":"def_BAL","name":"Ravens D/ST","pos":"DEF","team":"BAL","bye":null,"r":{"yahoo":203,"pp":166}},{"id":"zachariah branch","name":"Zachariah Branch","pos":"WR","team":"ATL","bye":null,"r":{"udog":191,"yahoo":222}},{"id":"jacoby brissett","name":"Jacoby Brissett","pos":"QB","team":"ARI","bye":null,"r":{"udog":200,"yahoo":216}},{"id":"najee harris","name":"Najee Harris","pos":"RB","team":"NYG","bye":null,"r":{"udog":208,"yahoo":210,"pp":194}},{"id":"gunnar helm","name":"Gunnar Helm","pos":"TE","team":"TEN","bye":null,"r":{"udog":195,"yahoo":226}},{"id":"cairo santos","name":"Cairo Santos","pos":"K","team":"CHI","bye":null,"r":{"yahoo":217}},{"id":"malachi fields","name":"Malachi Fields","pos":"WR","team":"NYG","bye":null,"r":{"udog":196,"yahoo":241,"pp":200}},{"id":"evan mcpherson","name":"Evan McPherson","pos":"K","team":"CIN","bye":null,"r":{"yahoo":220,"pp":163}},{"id":"ted hurst","name":"Ted Hurst","pos":"WR","team":"TB","bye":null,"r":{"udog":202,"yahoo":238}},{"id":"demond claiborne","name":"Demond Claiborne","pos":"RB","team":"MIN","bye":null,"r":{"udog":234,"yahoo":207}},{"id":"def_DAL","name":"Cowboys D/ST","pos":"DEF","team":"DAL","bye":null,"r":{"yahoo":223}},{"id":"def_GB","name":"Packers D/ST","pos":"DEF","team":"GB","bye":null,"r":{"yahoo":224,"pp":165}},{"id":"kaytron allen","name":"Kaytron Allen","pos":"RB","team":"WAS","bye":null,"r":{"udog":219,"yahoo":229}},{"id":"def_KC","name":"Chiefs D/ST","pos":"DEF","team":"KC","bye":null,"r":{"yahoo":231}},{"id":"antonio williams","name":"Antonio Williams","pos":"WR","team":"WAS","bye":null,"r":{"udog":227,"yahoo":235}},{"id":"jack bech","name":"Jack Bech","pos":"WR","team":"LV","bye":null,"r":{"udog":232,"yahoo":232}},{"id":"james conner","name":"James Conner","pos":"RB","team":"ARI","bye":null,"r":{"udog":241,"yahoo":228}},{"id":"ollie gordon","name":"Ollie Gordon II","pos":"RB","team":"MIA","bye":null,"r":{"udog":250,"yahoo":225}},{"id":"adam randall","name":"Adam Randall","pos":"RB","team":"BAL","bye":null,"r":{"udog":247,"yahoo":230}},{"id":"darnell mooney","name":"Darnell Mooney","pos":"WR","team":"NYG","bye":null,"r":{"udog":236,"yahoo":243}},{"id":"chris boswell","name":"Chris Boswell","pos":"K","team":"PIT","bye":null,"r":{"yahoo":244}},{"id":"harrison mevis","name":"Harrison Mevis","pos":"K","team":"LAR","bye":null,"r":{"yahoo":245,"pp":161}},{"id":"david njoku","name":"David Njoku","pos":"TE","team":"LAC","bye":null,"r":{"pp":147}},{"id":"andy borregales","name":"Andy Borregales","pos":"K","team":"NE","bye":null,"r":{"pp":169}},{"id":"blake grupe","name":"Blake Grupe","pos":"K","team":"IND","bye":null,"r":{"pp":170}},{"id":"tank dell","name":"Tank Dell","pos":"WR","team":"HOU","bye":null,"r":{"pp":183}}];
+const AS_OF = "Aug 31, 2026";
+const FMT_SOURCES = {
+  half:{fft:"fft_half", others:["ffc","pp"]},
+  ppr: {fft:"fft_ppr",  others:["pp","ffc"]},
+  std: {fft:"fft_std",  others:["ffc","pp"]}
+};
+const SRC_LABEL = {fft_half:"FFToday",fft_ppr:"FFToday",fft_std:"FFToday",ffc:"FFC market",pp:"PrizePicks"};
+const TEAM_BYE = {};
+DATA.forEach(p=>{ if(p.bye && p.team) TEAM_BYE[p.team]=p.bye; });
+DATA.forEach(p=>{ if(!p.bye) p.bye = TEAM_BYE[p.team]||null; });
+
+let fmt = "half", pos = "ALL", q = "", hideGone = false, sortK = "rank", sortDir = 1, tab="board";
+let slot = 1, state = {name:"", drafted:{}}; // drafted: id -> "gone" | "mine"
+let live = {};   // id -> adp (per format)
+let rows = [];   // computed
+let storeOK = true;
+
+function fmtKey(){ return "draft:"+slot; }
+async function loadSlot(){
+  state = {name:"",drafted:{}};
+  try{
+    const r = await window.storage.get(fmtKey(), false);
+    if(r && r.value){ const v = JSON.parse(r.value); state = {name:v.name||"", drafted:v.drafted||{}}; if(v.fmt) fmt=v.fmt; }
+  }catch(e){ /* missing key or no storage */ }
+  document.getElementById("slotName").value = state.name;
+  syncFmtButtons();
+  compute(); render();
+}
+let saveT;
+function save(){
+  clearTimeout(saveT);
+  saveT = setTimeout(async ()=>{
+    try{ await window.storage.set(fmtKey(), JSON.stringify({name:state.name,fmt,drafted:state.drafted}), false); setStatus(""); }
+    catch(e){ storeOK=false; setStatus("Not saving — storage unavailable in this view"); }
+  }, 250);
+}
+function setStatus(s){ document.getElementById("status").textContent = s; }
+
+function compute(){
+  const S = FMT_SOURCES[fmt];
+  const keys = [S.fft, ...S.others];
+  rows = DATA.map(p=>{
+    const vals = keys.map(k=>p.r[k]).filter(v=>v!=null);
+    let avg = vals.length? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+    const hi = vals.length? Math.min(...vals):null, lo = vals.length? Math.max(...vals):null;
+    const yahoo = p.r.yahoo ?? null, udog = p.r.udog ?? null;
+    if(avg==null && yahoo!=null) avg = yahoo + 0.01; // no expert coverage: fall back so they still list
+    return {...p, avg, hi, lo, spread: (hi!=null&&lo!=null)? lo-hi : null, yahoo, udog, n:vals.length,
+            live: live[p.id] ?? null, srcs: keys.filter(k=>p.r[k]!=null)};
+  }).filter(r=>r.avg!=null);
+  rows.sort((a,b)=>a.avg-b.avg);
+  const posCount = {};
+  rows.forEach((r,i)=>{ r.rank=i+1; posCount[r.pos]=(posCount[r.pos]||0)+1; r.prank=r.pos+posCount[r.pos];
+    r.val = (r.yahoo!=null)? r.yahoo - r.rank : null; });
+}
+
+function visible(r){
+  if(pos!=="ALL" && r.pos!==pos) return false;
+  if(hideGone && state.drafted[r.id]) return false;
+  if(q){ const s=(r.name+" "+r.team+" "+r.pos).toLowerCase(); if(!s.includes(q)) return false; }
+  return true;
+}
+function sorted(list){
+  const k = sortK;
+  const get = r => k==="hilo"? r.hi : k==="name"? r.name : k==="pos"? r.pos : r[k];
+  return [...list].sort((a,b)=>{
+    let x=get(a), y=get(b);
+    if(x==null && y==null) return 0; if(x==null) return 1; if(y==null) return -1;
+    if(typeof x==="string") return x.localeCompare(y)*sortDir;
+    return (x-y)*sortDir;
+  });
+}
+
+function valBar(r){
+  if(r.val==null) return '<span class="spread">—</span>';
+  const v = r.val, cap = 30, w = Math.min(Math.abs(v),cap)/cap*50;
+  const cls = v>=0? "up":"down";
+  return `<div class="vb"><div class="track"><div class="bar ${cls}" style="width:${w}%"></div></div><span class="n ${cls}">${v>0?"+":""}${v}</span></div>`;
+}
+function renderBoard(){
+  const tb = document.getElementById("rows");
+  const list = sorted(rows.filter(visible));
+  tb.innerHTML = list.map(r=>{
+    const st = state.drafted[r.id]||"";
+    const hilo = r.hi!=null? `<span class="hl">${r.hi}<span class="sep">/</span>${r.lo}</span>` : `<span class="spread">—</span>`;
+    const sp = r.spread!=null? `<span class="spread ${r.spread>=25?'wide':''}">${r.spread}</span>` : "—";
+    const src = r.n? `${r.n} src` : `ADP only`;
+    return `<tr class="${st}" data-id="${r.id}">
+      <td class="rank num">${r.rank}</td>
+      <td><span class="tag ${r.pos}">${r.prank}</span></td>
+      <td class="name">${r.name}<span class="meta">${r.team||"FA"} · bye ${r.bye||"?"} · ${src}${r.team==="FA"?' · <em>free agent</em>':''}</span></td>
+      <td class="num">${r.avg.toFixed(1)}</td>
+      <td>${hilo}</td>
+      <td class="num">${sp}</td>
+      <td class="num">${r.yahoo??"—"}</td>
+      <td class="num">${r.udog??"—"}</td>
+      <td class="num">${r.live!=null? r.live.toFixed(1):"—"}</td>
+      <td>${valBar(r)}</td>
+      <td class="acts">
+        <button data-act="gone" class="${st==='gone'?'on-gone':''}" title="Drafted by someone else" aria-label="Mark drafted by others">✕</button>
+        <button data-act="mine" class="${st==='mine'?'on-mine':''}" title="Drafted by me" aria-label="Mark drafted by me">★</button>
+      </td></tr>`;
+  }).join("");
+  document.querySelectorAll("th[data-k]").forEach(th=>{
+    th.removeAttribute("aria-sort");
+    if(th.dataset.k===sortK) th.setAttribute("aria-sort", sortDir===1?"ascending":"descending");
+  });
+}
+
+function renderClock(){
+  const avail = rows.filter(r=>!state.drafted[r.id]);
+  const best = avail[0];
+  const byVal = [...avail].filter(r=>r.val!=null && r.rank<=150).sort((a,b)=>b.val-a.val)[0];
+  const cells = [];
+  if(best) cells.push({lab:"Best available", who:best.name, sub:`${best.prank} · #${best.rank} consensus`});
+  if(byVal) cells.push({lab:"Best value", who:byVal.name, sub:`<b>+${byVal.val}</b> vs Yahoo · #${byVal.rank}`});
+  ["QB","RB","WR","TE"].forEach(P=>{
+    const a = avail.find(r=>r.pos===P);
+    if(a) cells.push({lab:`Next ${P}`, who:a.name, sub:`#${a.rank}${a.val!=null?` · <b>${a.val>0?'+':''}${a.val}</b> vs Yahoo`:''}`});
+  });
+  document.getElementById("clock").innerHTML = cells.map(c=>`<div class="cell"><div class="lab">${c.lab}</div><div class="who">${c.who}</div><div class="sub">${c.sub}</div></div>`).join("");
+}
+
+function vItem(r, d, sub){
+  const st = state.drafted[r.id]||"";
+  return `<li class="${st}"><span class="tag ${r.pos}">${r.prank}</span><div class="who">${r.name}<span>${r.team} · consensus #${r.rank} · Yahoo ${r.yahoo??"—"}</span></div><div class="d">${d}<small>${sub}</small></div></li>`;
+}
+function renderValues(){
+  const pool = rows.filter(r=>r.val!=null && r.rank<=160 && r.n>=2);
+  const falls = [...pool].sort((a,b)=>b.val-a.val).slice(0,15);
+  const reaches = [...pool].sort((a,b)=>a.val-b.val).slice(0,15);
+  const splits = rows.filter(r=>r.spread!=null && r.n>=3 && r.rank<=150).sort((a,b)=>b.spread-a.spread).slice(0,12);
+  const yud = rows.filter(r=>r.yahoo!=null&&r.udog!=null&&r.rank<=150).map(r=>({...r,g:r.yahoo-r.udog})).sort((a,b)=>Math.abs(b.g)-Math.abs(a.g)).slice(0,12);
+  document.getElementById("falls").innerHTML = falls.map(r=>vItem(r,`<span style="color:var(--up)">+${r.val}</span>`,"picks of value")).join("");
+  document.getElementById("reaches").innerHTML = reaches.map(r=>vItem(r,`<span style="color:var(--down)">${r.val}</span>`,"picks overpaid")).join("");
+  document.getElementById("splits").innerHTML = splits.map(r=>vItem(r,`${r.hi}–${r.lo}`,"hi / lo")).join("");
+  document.getElementById("yud").innerHTML = yud.map(r=>vItem(r,`${r.g>0?"+":""}${r.g}`, r.g>0?"Yahoo later than UD":"Yahoo earlier than UD")).join("");
+}
+
+const NEEDS = [["QB",1],["RB",2],["WR",2],["TE",1],["FLEX",1],["K",1],["DEF",1]];
+function renderTeam(){
+  const mine = rows.filter(r=>state.drafted[r.id]==="mine").sort((a,b)=>a.rank-b.rank);
+  const c = {}; mine.forEach(r=>c[r.pos]=(c[r.pos]||0)+1);
+  const flexAvail = Math.max(0,(c.RB||0)-2)+Math.max(0,(c.WR||0)-2)+Math.max(0,(c.TE||0)-1);
+  document.getElementById("need").innerHTML = NEEDS.map(([P,n])=>{
+    const have = P==="FLEX"? Math.min(flexAvail,1) : Math.min(c[P]||0,n);
+    return `<div class="${have>=n?'ok':''}"><b>${P}</b> ${have}/${n}</div>`;
+  }).join("") + `<div><b>Total</b> ${mine.length}</div>`;
+  const byes = {}; mine.forEach(r=>{ if(r.bye) byes[r.bye]=(byes[r.bye]||0)+1; });
+  const byeWarn = Object.entries(byes).filter(([b,n])=>n>=3).map(([b,n])=>`bye ${b} ×${n}`).join(", ");
+  document.getElementById("roster").innerHTML = mine.length? mine.map(r=>`<li><span class="tag ${r.pos}">${r.prank}</span><div class="n">${r.name}<span>${r.team} · bye ${r.bye||"?"} · consensus #${r.rank}</span></div><button data-id="${r.id}" data-act="clear">remove</button></li>`).join("")
+     + (byeWarn? `<li class="empty">Bye-week stack: ${byeWarn}</li>`:"")
+    : `<li class="empty">No picks yet. Tap ★ on the board when you draft someone.</li>`;
+}
+
+function render(){
+  renderClock();
+  if(tab==="board") renderBoard(); else if(tab==="values") renderValues(); else renderTeam();
+}
+function syncFmtButtons(){ document.querySelectorAll("[data-fmt]").forEach(b=>b.setAttribute("aria-pressed", b.dataset.fmt===fmt)); }
+
+/* events */
+document.querySelector(".seg").addEventListener("click", e=>{
+  const b = e.target.closest("[data-fmt]"); if(!b) return;
+  fmt = b.dataset.fmt; syncFmtButtons(); live = {}; compute(); render(); save();
+});
+document.querySelector(".tabs").addEventListener("click", e=>{
+  const b = e.target.closest("[data-tab]"); if(!b) return;
+  tab = b.dataset.tab;
+  document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected", x===b));
+  ["board","values","team"].forEach(t=>document.getElementById("tab-"+t).hidden = t!==tab);
+  render();
+});
+document.querySelector(".filters").addEventListener("click", e=>{
+  const b = e.target.closest("[data-pos]"); if(!b) return;
+  pos = b.dataset.pos;
+  document.querySelectorAll("[data-pos]").forEach(x=>x.setAttribute("aria-pressed", x===b));
+  renderBoard();
+});
+document.getElementById("q").addEventListener("input", e=>{ q=e.target.value.trim().toLowerCase(); renderBoard(); });
+document.getElementById("hideGone").addEventListener("change", e=>{ hideGone=e.target.checked; renderBoard(); });
+document.querySelector("thead").addEventListener("click", e=>{
+  const th = e.target.closest("th[data-k]"); if(!th) return;
+  const k = th.dataset.k;
+  if(sortK===k) sortDir*=-1; else { sortK=k; sortDir = (k==="val")? -1 : 1; }
+  renderBoard();
+});
+function mark(id, act){
+  const cur = state.drafted[id];
+  if(act==="clear" || cur===act) delete state.drafted[id]; else state.drafted[id]=act;
+  save(); render();
+}
+document.getElementById("rows").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-act]"); if(!b) return;
+  mark(b.closest("tr").dataset.id, b.dataset.act);
+});
+document.getElementById("roster").addEventListener("click", e=>{
+  const b = e.target.closest("button[data-act]"); if(!b) return; mark(b.dataset.id,"clear");
+});
+document.getElementById("reset").addEventListener("click", ()=>{
+  if(!Object.keys(state.drafted).length) return;
+  if(confirm("Clear all drafted marks for this draft slot?")){ state.drafted={}; save(); render(); }
+});
+document.getElementById("slotName").addEventListener("input", e=>{ state.name=e.target.value; save(); refreshSlotLabels(); });
+const slotSel = document.getElementById("slot");
+async function refreshSlotLabels(){
+  const names = {};
+  for(let i=1;i<=5;i++){ try{ const r=await window.storage.get("draft:"+i,false); if(r&&r.value){ const v=JSON.parse(r.value); if(v.name) names[i]=v.name; } }catch(e){} }
+  if(state.name) names[slot]=state.name;
+  slotSel.innerHTML = [1,2,3,4,5].map(i=>`<option value="${i}" ${i===slot?"selected":""}>Draft ${i}${names[i]?" — "+names[i]:""}</option>`).join("");
+}
+slotSel.addEventListener("change", async e=>{ slot=+e.target.value; await loadSlot(); refreshSlotLabels(); });
+
+/* live ADP from FantasyFootballCalculator (public JSON, CORS-enabled) */
+function nk(s){ return s.toLowerCase().replace(/[.'’]/g,"").replace(/\b(jr|sr|iii|ii)\b/g,"").replace(/\s+/g," ").trim(); }
+document.getElementById("live").addEventListener("click", async ()=>{
+  const map = {std:"standard",half:"half-ppr",ppr:"ppr"};
+  setStatus("Fetching live ADP…");
+  try{
+    const res = await fetch(`https://fantasyfootballcalculator.com/api/v1/adp/${map[fmt]}?teams=12&year=2026`);
+    if(!res.ok) throw new Error(res.status);
+    const j = await res.json();
+    const idx = {}; DATA.forEach(p=>{ idx[p.pos==="DEF"? "def_"+p.team : nk(p.name)] = p.id; });
+    let n=0;
+    (j.players||[]).forEach(pl=>{
+      let key = pl.position==="DEF"? "def_"+(pl.team==="JAX"?"JAC":pl.team) : nk(pl.name);
+      if(key==="kenny gainwell") key="kenneth gainwell";
+      const id = idx[key]; if(id){ live[id]=+pl.adp; n++; }
+    });
+    compute(); render();
+    setStatus(n? `Live ADP loaded for ${n} players (${j.meta?.total_drafts||"?"} drafts)` : "Feed returned no matches");
+  }catch(e){ setStatus("Live ADP unavailable in this browser — embedded ADP still applies"); }
+});
+
+document.getElementById("asof").textContent = "data " + AS_OF;
+compute(); render();
+refreshSlotLabels().then(loadSlot);
+</script>
+</body>
+</html>
