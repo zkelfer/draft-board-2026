@@ -9,7 +9,8 @@ under `data_private/`.
    base64-decode to `data_private/DraftSheets_2026.xlsx`.
 2. **Subvertadown board** — `python3 pipeline/fetch_subvertadown.py`
    (one fetch; if it fails or the parse guard trips, continue without it —
-   build_data degrades gracefully). The draft URL changes if league settings
+   build_data carries the last-known SubD ranks forward from the previous
+   data.json, so a blocked fetch goes stale rather than blank). The draft URL changes if league settings
    are edited in TapThatDraft; update `DRAFT_URL` in the script when it does.
 3. **News sweep** — search NFL news from the last 24h for players in the top ~150
    of `pipeline/data.json` consensus. Add a `pipeline/scratches.py` entry ONLY for

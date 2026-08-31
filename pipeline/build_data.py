@@ -68,6 +68,16 @@ if _sd.exists():
         if key in players:
             players[key]["r"]["sd"] = int(row["overall"]); n += 1
     print(f"subvertadown: {n} matched")
+else:
+    # csv unavailable (e.g. cloud refresh can't reach subvertadown): keep last-known ranks
+    try:
+        prev = {p["id"]: p["r"].get("sd") for p in json.load(open(pathlib.Path(__file__).parent/"data.json"))}
+        n = 0
+        for k,p in players.items():
+            if prev.get(k) is not None: p["r"]["sd"] = prev[k]; n += 1
+        print(f"subvertadown: csv missing, carried {n} ranks from previous build")
+    except FileNotFoundError:
+        print("subvertadown: csv missing, no previous build to carry from")
 
 # sanity: keys with same display but different key
 out = []
