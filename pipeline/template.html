@@ -257,6 +257,13 @@ details.src li{margin:3px 0}
 </details>
 
 <script>
+/* window.storage is the Claude artifact API; when hosted standalone, back the same get/set calls with localStorage */
+if(!window.storage){
+  window.storage = {
+    async get(key, shared){ const v = localStorage.getItem(key); return v==null? null : {key, value:v}; },
+    async set(key, value, shared){ localStorage.setItem(key, value); return true; }
+  };
+}
 const DATA = __DATA__;
 const AS_OF = "__ASOF__";
 const FMT_SOURCES = {
