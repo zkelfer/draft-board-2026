@@ -268,6 +268,7 @@ details.src li{margin:3px 0}
     </div>
     <div class="filters lgp" id="lgPanel" hidden>
       <label>Teams <input id="lg-t" type="number" min="6" max="16" step="2"></label>
+      <label title="Your draft slot — enables the drop-off-by-your-next-pick numbers in the strip above">Pick <input id="lg-dp" type="number" min="0" max="16"></label>
       <label>QB <input id="lg-qb" type="number" min="1" max="2"></label>
       <label>RB <input id="lg-rb" type="number" min="1" max="4"></label>
       <label>WR <input id="lg-wr" type="number" min="1" max="4"></label>
@@ -296,8 +297,8 @@ details.src li{margin:3px 0}
           <th data-k="udog" class="num" title="Underdog ADP (8/24)">UD</th>
           <th data-k="sd" class="num" title="Subvertadown TapThatDraft board order (12-team, 1.0 PPR room)">SubD</th>
           <th data-k="live" class="num" title="Live mock-draft ADP (FantasyFootballCalculator)">Live</th>
-          <th data-k="vbd" class="num" title="Value over replacement: projected points above the positional baseline for your league settings (League button). Hover a value for its auction $.">VAL</th>
-          <th data-k="val" title="Yahoo ADP minus consensus rank. Green = the room lets them fall. Red = the room reaches.">Value vs Yahoo</th>
+          <th data-k="vbd" class="num" title="Live value over replacement: projected points above the positional baseline for your league settings (League button). Updates as players are drafted. Hover a value for its auction $.">VAL</th>
+          <th data-k="val" title="Yahoo ADP vs consensus, priced in projected points via a log pick-value curve. Green = the room lets them fall. Hover the bar for the raw pick gap.">Value vs Yahoo</th>
           <th></th>
         </tr></thead>
         <tbody id="rows"></tbody>
@@ -346,7 +347,7 @@ details.src li{margin:3px 0}
     <li><b>PrizePicks</b> (Christian Hardy) — PPR top-200, 8/29. Used in all formats; note it leans PPR.</li>
     <li><b>FantasyFootballCalculator</b> — half-PPR market rankings from mock drafts, 8/31. Represents the crowd, not an analyst.</li>
     <li><b>Yahoo ADP</b> and <b>Underdog ADP</b> — via FFToday's ADP table, 8/24. Yahoo defaults to half-PPR, so this is the closest read on your leaguemates' behavior.</li>
-    <li><b>Value vs Yahoo</b> = Yahoo ADP − consensus rank. +12 means the room takes him ~12 picks after consensus says he's worth it.</li>
+    <li><b>Value vs Yahoo</b> — the gap between Yahoo ADP and consensus, priced in projected points on a log pick-value curve (a 12-pick fall is worth ~13 pts at the top of the board, ~2 pts at pick 100). Hover the bar for the raw pick gap.</li>
     <li><b>Live</b> — FantasyFootballCalculator's public ADP feed for the selected format, fetched on demand. Fails silently if the feed is unreachable from this browser.</li>
     <li>Not included: JJ Zachariason (Late-Round members hub) and The Ringer (paywalled/embedded). Paste their lists into a message and they can be merged in on the next refresh.</li>
     <li>Drafted marks and your picks are saved per draft slot and survive closing the app.</li>
@@ -385,7 +386,7 @@ let storeOK = true;
    league size (QB ×1.17, RB ×1.267, WR ×1.23, TE ×1.0) plus each position's share of
    the flex pool; projections are discounted by projected missed games ×(16-m)/17. */
 const PPR_OF = {std:0, half:0.5, ppr:1};
-const LG_DEF = {t:12, qb:1, rb:2, wr:2, te:1, fx:1, bn:6, sf:0, ptd:4, int:-1, bud:200};
+const LG_DEF = {t:12, qb:1, rb:2, wr:2, te:1, fx:1, bn:6, sf:0, ptd:4, int:-1, bud:200, dp:0}; // dp: my draft slot (0 = not set)
 let vbdMap = {}, vbdCut = null;
 function lgNow(){ return {...LG_DEF, ...(state.league||{})}; }
 function scoreStats(s, lg, ppr){
@@ -396,9 +397,12 @@ function scoreStats(s, lg, ppr){
        + (s.FL||0)*-2;
 }
 function projPts(pr, lg, ppr){
-  const parts = ["l","a","h"].map(k=>scoreStats(pr[k],lg,ppr)).filter(v=>v!=null);
-  if(!parts.length) return null;
-  return parts.reduce((x,y)=>x+y,0)/parts.length /17*(16-(pr.m||0));
+  // PERT mean of the low/avg/high bands (degrades to avg when bands are absent);
+  // undiscounted — missed games are charged against the surplus in computeVBD,
+  // since a missed week costs (player − replacement), not the player's full points
+  const l = scoreStats(pr.l,lg,ppr), a = scoreStats(pr.a,lg,ppr), h = scoreStats(pr.h,lg,ppr);
+  if(a==null) return null;
+  return (l!=null && h!=null)? (l + 4*a + h)/6 : a;
 }
 function computeVBD(){
   vbdMap = {}; vbdCut = null;
@@ -409,7 +413,7 @@ function computeVBD(){
     const pr = PROJ.players[id];
     if(!pool[pr.pos]) continue;
     const v = projPts(pr, lg, ppr);
-    if(v!=null) pool[pr.pos].push({id, pts:v});
+    if(v!=null) pool[pr.pos].push({id, pts:v, m: pr.m||0});
   }
   for(const P in pool) pool[P].sort((a,b)=>b.pts-a.pts);
   const base = {QB: Math.round((lg.qb+lg.sf)*lg.t*1.17),
@@ -422,17 +426,31 @@ function computeVBD(){
   const share = {RB:0,WR:0,TE:0};
   fxPool.slice(0, Math.round(lg.fx*lg.t*1.4)).forEach(x=>share[x.pos]++);
   const cut = {QB:base.QB, RB:base.RB+share.RB, WR:base.WR+share.WR, TE:base.TE+share.TE};
-  const nth = P => { const i = Math.min(cut[P], pool[P].length)-1; return i>=0? pool[P][i].pts : 0; };
+  // live replacement: as players come off the board, the baseline is the
+  // (cut − drafted-at-position)th best still-available player
+  const draftedAt = {QB:0,RB:0,WR:0,TE:0};
+  for(const id in state.drafted){
+    const pr = PROJ.players[id];
+    if(pr && draftedAt[pr.pos]!=null) draftedAt[pr.pos]++;
+  }
+  const nth = P => {
+    const avail = pool[P].filter(x=>!state.drafted[x.id]);
+    const i = Math.min(Math.max(1, cut[P]-draftedAt[P]), avail.length)-1;
+    return i>=0? avail[i].pts : 0;
+  };
   const basePts = {RB:nth("RB"), WR:nth("WR")};
   basePts.TE = cut.TE>0? nth("TE") : basePts.WR;
   basePts.QB = Math.max(nth("QB"), basePts.RB, basePts.WR, basePts.TE);
   let totalVOR = 0;
-  const raw = {};
-  for(const P in pool) pool[P].forEach(x=>{ const v = x.pts - basePts[P]; raw[x.id]=v; if(v>0) totalVOR+=v; });
+  const raw = {}, ptsOf = {};
+  for(const P in pool) pool[P].forEach(x=>{
+    const v = (x.pts - basePts[P]) * (17 - x.m)/17;
+    raw[x.id] = v; ptsOf[x.id] = x.pts; if(v>0) totalVOR += v;
+  });
   const spots = lg.qb+lg.rb+lg.wr+lg.te+lg.fx+lg.sf+lg.bn+2; // +K +DEF
   const prem = Math.max(0, (lg.bud - spots) * lg.t);
   for(const id in raw)
-    vbdMap[id] = {v: raw[id], auc: totalVOR>0? Math.max(1, Math.round(raw[id]/totalVOR*prem + 1)) : 1};
+    vbdMap[id] = {v: raw[id], pts: ptsOf[id], auc: totalVOR>0? Math.max(1, Math.round(raw[id]/totalVOR*prem + 1)) : 1};
   vbdCut = cut;
 }
 
@@ -461,9 +479,12 @@ function compute(){
   computeVBD();
   const S = FMT_SOURCES[fmt];
   const keys = [S.fft, ...S.others];
+  // consensus in value space: average a pick-value curve, not ordinal ranks,
+  // so one contrarian source can't drag a near-unanimous #1 below the field
+  const V = r => Math.pow(r, -0.41), unV = v => Math.pow(v, -1/0.41);
   rows = DATA.map(p=>{
     const vals = keys.map(k=>p.r[k]).filter(v=>v!=null);
-    let avg = vals.length? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+    let avg = vals.length? unV(vals.reduce((a,b)=>a+V(b),0)/vals.length) : null;
     const hi = vals.length? Math.min(...vals):null, lo = vals.length? Math.max(...vals):null;
     const yahoo = p.r.yahoo ?? null, udog = p.r.udog ?? null;
     if(avg==null && yahoo!=null) avg = yahoo + 0.01; // no expert coverage: fall back so they still list
@@ -474,8 +495,13 @@ function compute(){
   }).filter(r=>r.avg!=null);
   rows.sort((a,b)=>a.avg-b.avg);
   const posCount = {};
+  let xr = 0; // expert-covered rank: ADP-only insertions don't shift value for players below them
   rows.forEach((r,i)=>{ r.rank=i+1; posCount[r.pos]=(posCount[r.pos]||0)+1; r.prank=r.pos+posCount[r.pos];
-    r.val = (r.yahoo!=null)? r.yahoo - r.rank : null; });
+    r.xrank = r.n>0? ++xr : null;
+    // value priced in projected points via a log pick-value curve (~17·ln), not raw picks —
+    // a 12-pick fall is ~13 pts at the top of the board and ~2 pts at pick 100
+    r.val = (r.yahoo!=null && r.xrank!=null)? +(17*Math.log(r.yahoo/r.xrank)).toFixed(1) : null;
+    r.valPicks = (r.yahoo!=null)? r.yahoo - r.rank : null; });
 }
 
 function visible(r){
@@ -497,9 +523,10 @@ function sorted(list){
 
 function valBar(r){
   if(r.val==null) return '<span class="spread">—</span>';
-  const v = r.val, cap = 30, w = Math.min(Math.abs(v),cap)/cap*50;
+  const v = r.val, cap = 15, w = Math.min(Math.abs(v),cap)/cap*50;
   const cls = v>=0? "up":"down";
-  return `<div class="vb"><div class="track"><div class="bar ${cls}" style="width:${w}%"></div></div><span class="n ${cls}">${v>0?"+":""}${v}</span></div>`;
+  const picks = r.valPicks!=null? ` title="${r.valPicks>0?"+":""}${r.valPicks} picks vs consensus"` : "";
+  return `<div class="vb"${picks}><div class="track"><div class="bar ${cls}" style="width:${w}%"></div></div><span class="n ${cls}">${v>0?"+":""}${v.toFixed(1)}</span></div>`;
 }
 function renderBoard(){
   const tb = document.getElementById("rows");
@@ -539,10 +566,32 @@ function renderClock(){
   const byVal = [...avail].filter(r=>r.val!=null && r.rank<=150).sort((a,b)=>b.val-a.val)[0];
   const cells = [];
   if(best) cells.push({lab:"Best available", who:best.name, sub:`${best.prank} · #${best.rank} consensus`});
-  if(byVal) cells.push({lab:"Best value", who:byVal.name, sub:`<b>+${byVal.val}</b> vs Yahoo · #${byVal.rank}`});
+  if(byVal) cells.push({lab:"Best value", who:byVal.name, sub:`<b>+${byVal.val.toFixed(1)} pts</b> vs Yahoo · #${byVal.rank}`});
+  // drop-off to my next snake pick (needs the Pick field in League settings)
+  const lg = lgNow();
+  let win = null;
+  if(lg.dp>=1 && lg.dp<=lg.t){
+    const cur = Object.keys(state.drafted).length + 1;
+    const mine = [];
+    for(let r=1; mine.length<2; r++){
+      const p = (r%2? lg.dp : lg.t+1-lg.dp) + (r-1)*lg.t;
+      if(p>=cur) mine.push(p);
+    }
+    win = mine[0]===cur? mine[1] : mine[0];
+  }
   ["QB","RB","WR","TE"].forEach(P=>{
     const a = avail.find(r=>r.pos===P);
-    if(a) cells.push({lab:`Next ${P}`, who:a.name, sub:`#${a.rank}${a.val!=null?` · <b>${a.val>0?'+':''}${a.val}</b> vs Yahoo`:''}`});
+    if(!a) return;
+    let vona = "";
+    if(win!=null){
+      const posAvail = avail.filter(r=>r.pos===P && vbdMap[r.id]).sort((x,y)=>vbdMap[y.id].pts-vbdMap[x.id].pts);
+      const later = posAvail.filter(r=>r.yahoo==null || r.yahoo > win);
+      if(posAvail.length && later.length){
+        const drop = vbdMap[posAvail[0].id].pts - vbdMap[later[0].id].pts;
+        if(drop>=1) vona = ` · <b style="color:var(--down)">−${drop.toFixed(0)}</b> by #${win}`;
+      }
+    }
+    cells.push({lab:`Next ${P}`, who:a.name, sub:`#${a.rank}${a.val!=null?` · <b>${a.val>0?'+':''}${a.val.toFixed(1)}</b>`:''}${vona}`});
   });
   document.getElementById("clock").innerHTML = cells.map(c=>`<div class="cell"><div class="lab">${c.lab}</div><div class="who">${c.who}</div><div class="sub">${c.sub}</div></div>`).join("");
 }
@@ -557,8 +606,8 @@ function renderValues(){
   const reaches = [...pool].sort((a,b)=>a.val-b.val).slice(0,15);
   const splits = rows.filter(r=>r.spread!=null && r.n>=3 && r.rank<=150).sort((a,b)=>b.spread-a.spread).slice(0,12);
   const yud = rows.filter(r=>r.yahoo!=null&&r.udog!=null&&r.rank<=150).map(r=>({...r,g:r.yahoo-r.udog})).sort((a,b)=>Math.abs(b.g)-Math.abs(a.g)).slice(0,12);
-  document.getElementById("falls").innerHTML = falls.map(r=>vItem(r,`<span style="color:var(--up)">+${r.val}</span>`,"picks of value")).join("");
-  document.getElementById("reaches").innerHTML = reaches.map(r=>vItem(r,`<span style="color:var(--down)">${r.val}</span>`,"picks overpaid")).join("");
+  document.getElementById("falls").innerHTML = falls.map(r=>vItem(r,`<span style="color:var(--up)">+${r.val.toFixed(1)}</span>`,"pts of value")).join("");
+  document.getElementById("reaches").innerHTML = reaches.map(r=>vItem(r,`<span style="color:var(--down)">${r.val.toFixed(1)}</span>`,"pts overpaid")).join("");
   document.getElementById("splits").innerHTML = splits.map(r=>vItem(r,`${r.hi}–${r.lo}`,"hi / lo")).join("");
   document.getElementById("yud").innerHTML = yud.map(r=>vItem(r,`${r.g>0?"+":""}${r.g}`, r.g>0?"Yahoo later than UD":"Yahoo earlier than UD")).join("");
 }
@@ -586,7 +635,7 @@ function render(){
 function syncFmtButtons(){ document.querySelectorAll("[data-fmt]").forEach(b=>b.setAttribute("aria-pressed", b.dataset.fmt===fmt)); }
 
 /* league settings panel */
-const LG_FIELDS = ["t","qb","rb","wr","te","fx","bn","ptd","int","bud"];
+const LG_FIELDS = ["t","dp","qb","rb","wr","te","fx","bn","ptd","int","bud"];
 function syncLgInputs(){
   const lg = lgNow();
   LG_FIELDS.forEach(f=>{ const el = document.getElementById("lg-"+f); if(el) el.value = lg[f]; });
@@ -643,7 +692,7 @@ document.querySelector("thead").addEventListener("click", e=>{
 function mark(id, act){
   const cur = state.drafted[id];
   if(act==="clear" || cur===act) delete state.drafted[id]; else state.drafted[id]=act;
-  save(); render();
+  save(); compute(); render(); // compute: VAL baselines shift with every pick
 }
 const MOTION_OK = matchMedia("(prefers-reduced-motion: no-preference)").matches;
 function spawnFx(x, y, kind){
@@ -728,7 +777,7 @@ async function ySyncPoll(){
         state.drafted[id] = want; changed++;
       }
     });
-    if(changed){ save(); render(); }
+    if(changed){ save(); compute(); render(); }
     setStatus(`Yahoo sync: ${(j.picks||[]).length} picks in${unmatched? ` (${unmatched} unmatched)`:""} · ${j.league||""}`);
   }catch(e){
     setStatus("Yahoo sync: helper not reachable — run pipeline/yahoo_sync.py on this machine");
