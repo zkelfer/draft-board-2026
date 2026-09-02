@@ -65,6 +65,18 @@ Std / Half / PPR toggle.
 | DraftSheets workbook (shared) | Projections (VAL column) | Any (recomputed) | 8/30 |
 | Subvertadown TapThatDraft | Value board (SubD column) | 1.0 PPR, 12-team | 8/31 |
 
+## Draft day on another machine
+
+The hosted board works anywhere; saved state is per-browser. **League → Copy state**
+puts all five draft slots on the clipboard; **Paste state** on the other machine
+imports them.
+
+**Yahoo auto-sync**: run `python3 pipeline/yahoo_sync.py` on the machine you draft
+from (one-time Yahoo app setup in that file's docstring — client id/secret go in
+`data_private/yahoo_app.json`). It polls the league's draft results and serves them
+locally; the board's **Yahoo sync** button then auto-marks every pick (★ for yours)
+every 15 seconds. Manual ★ marks are never overwritten.
+
 ## Yahoo Fantasy Sports API (planned, read-only)
 
 Pending API approval, the hardcoded Yahoo ADP snapshot will be replaced with live data:

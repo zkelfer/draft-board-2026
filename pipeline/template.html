@@ -238,6 +238,7 @@ details.src li{margin:3px 0}
       <input id="slotName" placeholder="League name" aria-label="League name">
     </div>
     <div class="spacer"></div>
+    <button class="btn" id="ysync" title="Auto-mark drafted players from the yahoo_sync.py helper running on this machine (see README)">Yahoo sync</button>
     <button class="btn" id="live" title="Pull live mock-draft ADP from FantasyFootballCalculator for this format">Refresh live ADP</button>
     <button class="btn danger" id="reset">Clear this draft</button>
     <span class="status" id="status"></span>
@@ -278,6 +279,9 @@ details.src li{margin:3px 0}
       <label>INT <select id="lg-int"><option>-1</option><option>-2</option></select></label>
       <label>Budget $<input id="lg-bud" type="number" min="100" max="500" step="10"></label>
       <span class="status" id="lgInfo"></span>
+      <span class="spacer"></span>
+      <button class="btn" id="copyState" title="Copy all five draft slots to the clipboard to move to another machine">Copy state</button>
+      <button class="btn" id="pasteState" title="Paste state copied from another machine">Paste state</button>
     </div>
     <div class="wrap">
       <table id="tbl">
@@ -696,6 +700,70 @@ document.getElementById("live").addEventListener("click", async ()=>{
     compute(); render();
     setStatus(n? `Live ADP loaded for ${n} players (${j.meta?.total_drafts||"?"} drafts)` : "Feed returned no matches");
   }catch(e){ setStatus("Live ADP unavailable in this browser — embedded ADP still applies"); }
+});
+
+/* Yahoo draft sync: poll the local yahoo_sync.py helper and mirror picks onto the board.
+   Localhost is exempt from mixed-content blocking, so this works from the hosted page. */
+let ySyncTimer = null;
+const ySyncBtn = document.getElementById("ysync");
+function playerIndex(){
+  const idx = {};
+  DATA.forEach(p=>{ idx[p.pos==="DEF"? "def_"+p.team : nk(p.name)] = p.id; });
+  return idx;
+}
+async function ySyncPoll(){
+  try{
+    const res = await fetch("http://localhost:8737/drafted.json", {cache:"no-store"});
+    if(!res.ok) throw new Error(res.status);
+    const j = await res.json();
+    const idx = playerIndex();
+    let changed = 0, unmatched = 0;
+    (j.picks||[]).forEach(pk=>{
+      const key = pk.pos==="DEF" ? "def_"+(pk.team==="JAX"?"JAC":pk.team) : nk(pk.name||"");
+      const id = idx[key];
+      if(!id){ unmatched++; return; }
+      const want = pk.mine? "mine" : "gone";
+      // never downgrade a manual ★ to ✕
+      if(state.drafted[id]!==want && !(state.drafted[id]==="mine" && want==="gone")){
+        state.drafted[id] = want; changed++;
+      }
+    });
+    if(changed){ save(); render(); }
+    setStatus(`Yahoo sync: ${(j.picks||[]).length} picks in${unmatched? ` (${unmatched} unmatched)`:""} · ${j.league||""}`);
+  }catch(e){
+    setStatus("Yahoo sync: helper not reachable — run pipeline/yahoo_sync.py on this machine");
+  }
+}
+ySyncBtn.addEventListener("click", ()=>{
+  if(ySyncTimer){ clearInterval(ySyncTimer); ySyncTimer=null; ySyncBtn.textContent="Yahoo sync"; setStatus("Yahoo sync off"); return; }
+  ySyncBtn.textContent = "Yahoo sync ●";
+  ySyncPoll();
+  ySyncTimer = setInterval(ySyncPoll, 15000);
+});
+
+/* move draft state between machines via clipboard */
+async function allSlotsState(){
+  const out = {};
+  for(let i=1;i<=5;i++){
+    try{ const r = await window.storage.get("draft:"+i, false); if(r && r.value) out["draft:"+i] = r.value; }catch(e){}
+  }
+  return out;
+}
+document.getElementById("copyState").addEventListener("click", async ()=>{
+  const data = JSON.stringify(await allSlotsState());
+  try{ await navigator.clipboard.writeText(data); setStatus("State copied — paste it on the other machine"); }
+  catch(e){ prompt("Clipboard unavailable; copy this by hand:", data); }
+});
+document.getElementById("pasteState").addEventListener("click", async ()=>{
+  const s = prompt("Paste the state copied from the other machine:");
+  if(!s) return;
+  try{
+    const j = JSON.parse(s);
+    let n = 0;
+    for(const k in j){ if(/^draft:[1-5]$/.test(k) && typeof j[k]==="string"){ JSON.parse(j[k]); await window.storage.set(k, j[k], false); n++; } }
+    await loadSlot(); refreshSlotLabels();
+    setStatus(n? `Imported ${n} draft slot${n>1?"s":""}` : "Nothing to import in that text");
+  }catch(e){ setStatus("Import failed — that text isn't board state"); }
 });
 
 document.getElementById("asof").textContent = "data " + AS_OF;
