@@ -21,6 +21,10 @@ leagues. Nothing is redistributed or served to anyone else.
 
 Open `dist/index.html` in a browser. No server needed.
 
+How to test: `pytest tests/test_build.py` — checks `pipeline/data.json` and
+`pipeline/proj.json` parse and rebuilds `dist/index.html` to confirm no
+template placeholders are left behind.
+
 ## Data pipeline
 
 ```
