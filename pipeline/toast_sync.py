@@ -47,7 +47,7 @@ def read_toasts(db):
             out.append((nid, arr, texts[0].strip(), texts[1].strip()))
     return out
 
-state = {"picks": [], "league": "", "updated": 0, "managers": []}
+state = {"picks": [], "league": "", "leagues": {}, "updated": 0, "managers": []}
 
 def poll(db, me, seen):
     while True:
@@ -69,22 +69,27 @@ def poll(db, me, seen):
                     for i, rec in enumerate(json.load(open(bf))):
                         key = f"bf{i}"
                         if key not in seen:
-                            seen[key] = {"name": rec["name"], "mgr": rec.get("by",""), "title": "", "arr": -1_000_000 + i}
+                            first_title = next((r["title"] for r in seen.values() if r.get("title")), "")
+                            seen[key] = {"name": rec["name"], "mgr": rec.get("by",""), "title": rec.get("title") or first_title, "arr": -1_000_000 + i}
                 except Exception as e:
                     print("backfill error:", e, flush=True)
-            picks = []
-            for i, (nid, rec) in enumerate(sorted(seen.items(), key=lambda kv: kv[1]["arr"])):
+            # one pick list per league (toast title = "<League> Draft"); several drafts can run at once
+            leagues = {}
+            for nid, rec in sorted(seen.items(), key=lambda kv: kv[1]["arr"]):
+                lg = (rec.get("title") or "?").replace(" Draft", "")
                 nm, pos, team = rec["name"], "", ""
                 if nm in CITY: pos, team, nm = "DEF", CITY[nm], nm
-                picks.append({"pick": i+1, "name": nm, "pos": pos, "team": team,
-                              "mine": bool(me) and me.lower() in rec["mgr"].lower(), "by": rec["mgr"]})
-            if picks and picks != state["picks"]:
-                state["picks"] = picks
-                state["league"] = next((r["title"].replace(" Draft","") for r in seen.values() if r.get("title")), "")
+                lst = leagues.setdefault(lg, [])
+                lst.append({"pick": len(lst)+1, "name": nm, "pos": pos, "team": team,
+                            "mine": bool(me) and me.lower() in rec["mgr"].lower(), "by": rec["mgr"]})
+            if leagues and leagues != state.get("leagues"):
+                newest = max(leagues, key=lambda k: max(r["arr"] for r in seen.values() if (r.get("title") or "?").replace(" Draft","")==k))
+                state["leagues"] = leagues
+                state["picks"] = leagues[newest]; state["league"] = newest
                 state["updated"] = time.time()
-                last = picks[-1]
-                print(f"\n{time.strftime('%H:%M:%S')}  pick {last['pick']}: {last['name']} — {last['by']}"
-                      f"{'  ★ MINE' if last['mine'] else ''}   ({len(picks)} total)", flush=True)
+                last = leagues[newest][-1]
+                print(f"\n{time.strftime('%H:%M:%S')}  [{newest}] pick {last['pick']}: {last['name']} — {last['by']}"
+                      f"{'  ★ MINE' if last['mine'] else ''}   ({len(leagues[newest])} total)", flush=True)
             state["managers"] = sorted(managers)
         except Exception as e:
             print("poll error:", e, flush=True)

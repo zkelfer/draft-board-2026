@@ -834,6 +834,14 @@ function playerIndex(){
   return idx;
 }
 function applyPicks(j, label){
+  // several drafts can be live at once: choose the league whose name matches this slot's name
+  if(j.leagues && Object.keys(j.leagues).length){
+    const names = Object.keys(j.leagues), want = (state.name||"").trim().toLowerCase();
+    let pick = names.length===1? names[0] : null;
+    if(!pick && want) pick = names.find(n=>n.toLowerCase().includes(want) || want.includes(n.toLowerCase().slice(0,12)));
+    if(!pick){ setStatus(`${label}: ${names.length} drafts live — name this slot to match one of: ${names.join(" / ")}`); return; }
+    j = {picks: j.leagues[pick], league: pick};
+  }
   const idx = playerIndex();
   let changed = 0, unmatched = 0;
   (j.picks||[]).forEach(pk=>{
