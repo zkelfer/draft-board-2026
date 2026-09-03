@@ -88,7 +88,23 @@ def walk(obj, key):
     elif isinstance(obj, list):
         for v in obj: yield from walk(v, key)
 
+def league_key_from_id(league_id):
+    """Bare numeric id (e.g. a mock draft's 626029) -> current NFL game's league key."""
+    j = api_get("/game/nfl")
+    gk = next(walk(j, "game_key"))
+    return f"{gk}.l.{league_id}"
+
+def league_name(league_key):
+    try:
+        j = api_get(f"/league/{league_key}")
+        return next(walk(j, "name"))
+    except Exception:
+        return league_key
+
 def pick_league():
+    if len(sys.argv) > 1 and sys.argv[1].isdigit():
+        lk = league_key_from_id(sys.argv[1])
+        return lk, league_name(lk)
     j = api_get("/users;use_login=1/games;game_keys=nfl/leagues")
     leagues = []
     for lg in walk(j, "league"):
@@ -177,10 +193,24 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 if __name__ == "__main__":
-    league_key, league_name = pick_league()
+    # non-interactive auth helpers: --auth-url prints the approval URL;
+    # --code <code> exchanges it for tokens and exits
+    if "--auth-url" in sys.argv:
+        app = load_app()
+        redirect = app.get("redirect_uri", "oob")
+        print(AUTH_URL + "?" + urllib.parse.urlencode(
+            {"client_id": app["client_id"], "redirect_uri": redirect, "response_type": "code"}))
+        sys.exit(0)
+    if "--code" in sys.argv:
+        code = sys.argv[sys.argv.index("--code")+1].strip()
+        redirect = load_app().get("redirect_uri", "oob")
+        token_request({"grant_type": "authorization_code", "code": code, "redirect_uri": redirect})
+        print("Tokens saved to", TOK_FILE)
+        sys.exit(0)
+    league_key, lname = pick_league()
     mine = my_team_key(league_key)
-    state["league"] = league_name
-    print(f"\nSyncing '{league_name}' ({league_key}); my team: {mine or 'unknown'}")
+    state["league"] = lname
+    print(f"\nSyncing '{lname}' ({league_key}); my team: {mine or 'unknown'}")
     print(f"Serving http://localhost:{PORT}/drafted.json — click 'Yahoo sync' on the board.\n")
     threading.Thread(target=poll_loop, args=(league_key, mine), daemon=True).start()
     HTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
