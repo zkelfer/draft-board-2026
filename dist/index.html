@@ -198,8 +198,10 @@ td.name .meta em{font-style:normal;color:var(--down)}
 .empty{color:var(--mute);padding:20px 0}
 
 /* tiers + my-picks planner */
-.tierb{font-family:var(--cond);font-size:11px;color:var(--mute);margin-left:6px;letter-spacing:.3px}
-.tierb.hot{color:var(--gold)}
+.tierb{display:inline-block;font-family:var(--cond);font-size:11px;font-weight:600;color:var(--ink2);margin-left:6px;letter-spacing:.3px;padding:1px 6px;border-radius:3px;border:1px solid var(--line);vertical-align:middle}
+.tierb.hot{color:#1D1607;background:var(--gold);border-color:var(--gold)}
+tr[data-tier='1'] td.rank{box-shadow:inset 3px 0 0 var(--gold)}
+tr[data-tier='2'] td.rank{box-shadow:inset 3px 0 0 rgba(242,193,78,.45)}
 .plan-wrap{max-width:900px}
 .plan-note{color:var(--mute);font-size:13px;margin:0 0 10px}
 .plan{list-style:none;margin:0;padding:0;background:var(--panel);border:1px solid var(--line);border-radius:8px}
@@ -580,7 +582,7 @@ function renderBoard(){
     const hilo = r.hi!=null? `<span class="hl">${r.hi}<span class="sep">/</span>${r.lo}</span>` : `<span class="spread">—</span>`;
     const sp = r.spread!=null? `<span class="spread ${r.spread>=25?'wide':''}">${r.spread}</span>` : "—";
     const src = r.n? `${r.n} src` : `ADP only`;
-    return `<tr class="${st}" data-id="${r.id}">
+    return `<tr class="${st}" data-id="${r.id}"${r.tier?` data-tier="${r.tier}"`:""}>
       <td class="rank num">${r.rank}</td>
       <td><span class="tag ${r.pos}">${r.prank}</span>${r.tier? `<span class="tierb${r.tier<=2?' hot':''}" title="Projection tier ${r.tier} at ${r.pos}">T${r.tier}</span>`:""}</td>
       <td class="name">${r.name}<span class="meta">${r.team||"FA"} · bye ${r.bye||"?"} · ${src}${r.team==="FA"?' · <em>free agent</em>':''}</span></td>
