@@ -833,29 +833,36 @@ function playerIndex(){
   DATA.forEach(p=>{ idx[p.pos==="DEF"? "def_"+p.team : nk(p.name)] = p.id; });
   return idx;
 }
+function applyPicks(j, label){
+  const idx = playerIndex();
+  let changed = 0, unmatched = 0;
+  (j.picks||[]).forEach(pk=>{
+    const key = pk.pos==="DEF" ? "def_"+(pk.team==="JAX"?"JAC":pk.team) : nk(pk.name||"");
+    const id = idx[key];
+    if(!id){ unmatched++; return; }
+    const want = pk.mine? "mine" : "gone";
+    // never downgrade a manual ★ to ✕
+    if(state.drafted[id]!==want && !(state.drafted[id]==="mine" && want==="gone")){
+      state.drafted[id] = want; changed++;
+    }
+  });
+  if(changed){ save(); compute(); render(); }
+  setStatus(`${label}: ${(j.picks||[]).length} picks in${unmatched? ` (${unmatched} unmatched)`:""}${j.league? " · "+j.league : ""}`);
+}
 async function ySyncPoll(){
   try{
     const res = await fetch("http://localhost:8737/drafted.json", {cache:"no-store"});
     if(!res.ok) throw new Error(res.status);
-    const j = await res.json();
-    const idx = playerIndex();
-    let changed = 0, unmatched = 0;
-    (j.picks||[]).forEach(pk=>{
-      const key = pk.pos==="DEF" ? "def_"+(pk.team==="JAX"?"JAC":pk.team) : nk(pk.name||"");
-      const id = idx[key];
-      if(!id){ unmatched++; return; }
-      const want = pk.mine? "mine" : "gone";
-      // never downgrade a manual ★ to ✕
-      if(state.drafted[id]!==want && !(state.drafted[id]==="mine" && want==="gone")){
-        state.drafted[id] = want; changed++;
-      }
-    });
-    if(changed){ save(); compute(); render(); }
-    setStatus(`Yahoo sync: ${(j.picks||[]).length} picks in${unmatched? ` (${unmatched} unmatched)`:""} · ${j.league||""}`);
+    applyPicks(await res.json(), "Yahoo sync");
   }catch(e){
     setStatus("Yahoo sync: helper not reachable — run pipeline/yahoo_sync.py on this machine");
   }
 }
+/* the Draft Board Sync browser extension posts picks straight into the page */
+window.addEventListener("message", e=>{
+  if(e.source!==window || !e.data || e.data.source!=="draft-board-sync") return;
+  applyPicks({picks:e.data.picks, league:e.data.league}, "Extension sync");
+});
 ySyncBtn.addEventListener("click", ()=>{
   if(ySyncTimer){ clearInterval(ySyncTimer); ySyncTimer=null; ySyncBtn.textContent="Yahoo sync"; setStatus("Yahoo sync off"); return; }
   ySyncBtn.textContent = "Yahoo sync ●";
@@ -892,6 +899,7 @@ document.getElementById("asof").textContent = "data " + AS_OF;
 compute(); render();
 refreshSlotLabels().then(loadSlot);
 requestAnimationFrame(()=>document.body.classList.add("lights")); // stadium lights on
+setTimeout(()=>window.postMessage({source:"draft-board-page", type:"ping"}, "*"), 1200); // ask the extension for current picks
 setTimeout(()=>document.getElementById("tbl").classList.add("settled"), 900); // stagger only the first paint
 </script>
 </body>
