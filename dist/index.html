@@ -883,12 +883,22 @@ window.addEventListener("message", e=>{
   if(!(e.data.picks||[]).length) return; // nothing scraped: stay quiet, don't clobber the status line
   applyPicks({picks:e.data.picks, league:e.data.league}, "Extension sync");
 });
-ySyncBtn.addEventListener("click", ()=>{
-  if(ySyncTimer){ clearInterval(ySyncTimer); ySyncTimer=null; ySyncBtn.textContent="Yahoo sync"; setStatus("Yahoo sync off"); return; }
+function ySyncStart(){
   ySyncBtn.textContent = "Yahoo sync ●";
   ySyncPoll();
-  ySyncTimer = setInterval(ySyncPoll, 15000);
+  ySyncTimer = setInterval(ySyncPoll, 8000);
+  try{ localStorage.setItem("ysync", "on"); }catch(e){}
+}
+ySyncBtn.addEventListener("click", ()=>{
+  if(ySyncTimer){
+    clearInterval(ySyncTimer); ySyncTimer=null; ySyncBtn.textContent="Yahoo sync"; setStatus("Yahoo sync off");
+    try{ localStorage.removeItem("ysync"); }catch(e){}
+    return;
+  }
+  ySyncStart();
 });
+// stay on across reloads
+try{ if(localStorage.getItem("ysync")==="on") setTimeout(ySyncStart, 800); }catch(e){}
 
 /* move draft state between machines via clipboard */
 async function allSlotsState(){

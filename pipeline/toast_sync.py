@@ -94,7 +94,7 @@ def poll(db, me, seen):
             state["managers"] = sorted(managers)
         except Exception as e:
             print("poll error:", e, flush=True)
-        time.sleep(3)
+        time.sleep(1)
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
