@@ -97,6 +97,14 @@
              text: (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 3000) };
   }
 
+  // optional local monitor (pipeline/sync_monitor.py); silently ignored when it isn't running
+  function report(kind, data) {
+    try {
+      fetch('http://127.0.0.1:8738/report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, url: location.href, ...data }) }).catch(() => {});
+    } catch (e) {}
+  }
+
   let last = '';
   function tick() {
     try {
@@ -106,10 +114,17 @@
         last = j;
         chrome.storage.local.set({ draft: { ...r, updated: Date.now(), url: location.href } });
         console.log('[draft-board-sync]', r.picks.length, 'picks scraped');
+        report('scrape', r);
       }
-    } catch (e) { console.warn('[draft-board-sync] scrape failed', e); }
+    } catch (e) { console.warn('[draft-board-sync] scrape failed', e); report('error', { error: String(e) }); }
   }
   tick();
   setInterval(tick, 5000);
-  setTimeout(() => { const p = probe(); console.log('[draft-board-sync] probe', JSON.stringify(p)); chrome.storage.local.set({ probe: p }); }, 4000);
+  setTimeout(() => {
+    const p = probe();
+    console.log('[draft-board-sync] probe', JSON.stringify(p));
+    chrome.storage.local.set({ probe: p });
+    report('probe', p);
+  }, 4000);
+  setInterval(() => report('probe', probe()), 60000);
 })();

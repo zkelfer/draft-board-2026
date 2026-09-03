@@ -1,20 +1,36 @@
 {
   "manifest_version": 3,
   "name": "Draft Board Sync",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mirrors your Yahoo draft room picks onto the Draft Board 2026 page. Personal use.",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "content_scripts": [
     {
-      "matches": ["https://football.fantasysports.yahoo.com/*"],
-      "js": ["yahoo.js"],
+      "matches": [
+        "https://football.fantasysports.yahoo.com/*"
+      ],
+      "js": [
+        "yahoo.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://zkelfer.github.io/draft-board-2026/*", "file:///*"],
-      "js": ["board.js"],
+      "matches": [
+        "https://zkelfer.github.io/draft-board-2026/*",
+        "file:///*"
+      ],
+      "js": [
+        "board.js"
+      ],
       "run_at": "document_idle"
     }
   ],
-  "action": { "default_title": "Draft Board Sync — reads the Yahoo draft room tab, feeds the board tab" }
+  "action": {
+    "default_title": "Draft Board Sync \u2014 reads the Yahoo draft room tab, feeds the board tab"
+  },
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ]
 }

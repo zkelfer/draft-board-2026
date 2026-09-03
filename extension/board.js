@@ -7,6 +7,16 @@
     if (!d) return;
     window.postMessage({ source: 'draft-board-sync', picks: d.picks || [], league: d.league || '',
                          updated: d.updated || 0 }, '*');
+    // report what the board made of it to the optional local monitor
+    setTimeout(() => {
+      const st = document.getElementById('status');
+      const gone = document.querySelectorAll('tr.gone').length, mine = document.querySelectorAll('tr.mine').length;
+      try {
+        fetch('http://127.0.0.1:8738/report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind: 'board', status: st ? st.textContent : '', rowsGone: gone, rowsMine: mine,
+                                 picksIn: (d.picks || []).length }) }).catch(() => {});
+      } catch (e) {}
+    }, 1500);
   }
   chrome.storage.local.get('draft', r => push(r.draft));
   chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.draft) push(ch.draft.newValue); });
