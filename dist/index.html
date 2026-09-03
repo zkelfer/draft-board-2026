@@ -197,6 +197,23 @@ td.name .meta em{font-style:normal;color:var(--down)}
 .roster li button:hover{color:var(--down)}
 .empty{color:var(--mute);padding:20px 0}
 
+/* tiers + my-picks planner */
+.tierb{font-family:var(--cond);font-size:11px;color:var(--mute);margin-left:6px;letter-spacing:.3px}
+.tierb.hot{color:var(--gold)}
+.plan-wrap{max-width:900px}
+.plan-note{color:var(--mute);font-size:13px;margin:0 0 10px}
+.plan{list-style:none;margin:0;padding:0;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.plan li{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(238,246,235,.07);flex-wrap:wrap}
+.plan li:last-child{border-bottom:0}
+.plan li.done{opacity:.35}
+.plan li.now{background:rgba(242,193,78,.08);box-shadow:inset 3px 0 0 var(--gold)}
+.plan .pk{width:64px;font-family:var(--cond);font-size:18px;font-weight:600;line-height:1}
+.plan .pk span{display:block;font-family:var(--font);font-size:11px;color:var(--mute);font-weight:400;margin-top:2px}
+.cand{display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:6px;padding:4px 9px;font-size:13px;font-weight:600}
+.cand.top{border-color:var(--gold)}
+.cand em{font-style:normal;color:var(--up);font-family:var(--cond);font-weight:600}
+.cand i{font-style:normal;color:var(--mute);font-size:11px;font-weight:400}
+
 /* sources footer */
 details.src{margin:0 16px 30px;color:var(--mute);font-size:12px;background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
 details.src summary{cursor:pointer;color:var(--ink2);font-weight:600}
@@ -247,6 +264,7 @@ details.src li{margin:3px 0}
     <button role="tab" aria-selected="true" data-tab="board">Board</button>
     <button role="tab" aria-selected="false" data-tab="values">Values vs Yahoo</button>
     <button role="tab" aria-selected="false" data-tab="team">My team</button>
+    <button role="tab" aria-selected="false" data-tab="plan">My picks</button>
   </nav>
 </header>
 
@@ -335,6 +353,13 @@ details.src li{margin:3px 0}
     <div class="team">
       <div class="need" id="need"></div>
       <ul class="roster" id="roster"></ul>
+    </div>
+  </div>
+
+  <div id="tab-plan" hidden>
+    <div class="team plan-wrap">
+      <p class="plan-note" id="planNote"></p>
+      <ol class="plan" id="plan"></ol>
     </div>
   </div>
 </main>
@@ -426,6 +451,24 @@ function computeVBD(){
   const share = {RB:0,WR:0,TE:0};
   fxPool.slice(0, Math.round(lg.fx*lg.t*1.4)).forEach(x=>share[x.pos]++);
   const cut = {QB:base.QB, RB:base.RB+share.RB, WR:base.WR+share.WR, TE:base.TE+share.TE};
+  // tiers: break where the drop to the next player clearly exceeds the position's
+  // typical gap (natural breaks on projected points, capped at 8 tiers)
+  const TIER_SPAN = {QB:20, RB:45, WR:55, TE:22};
+  const tierOf = {};
+  for(const P in pool){
+    const span = pool[P].slice(0, TIER_SPAN[P]);
+    const gaps = span.slice(1).map((x,i)=>span[i].pts-x.pts).sort((a,b)=>a-b);
+    const med = gaps.length? gaps[Math.floor(gaps.length/2)] : 0;
+    const th = Math.max(8, 3*med); // ≥ half a point per week, and clearly above the position's usual step
+    let t = 1;
+    pool[P].forEach((x,i)=>{
+      if(i>0 && t<8){
+        if(i < TIER_SPAN[P]){ if(pool[P][i-1].pts - x.pts >= th) t++; }
+        else if(i === TIER_SPAN[P]) t++;
+      }
+      tierOf[x.id] = t;
+    });
+  }
   // live replacement: as players come off the board, the baseline is the
   // (cut − drafted-at-position)th best still-available player
   const draftedAt = {QB:0,RB:0,WR:0,TE:0};
@@ -450,7 +493,8 @@ function computeVBD(){
   const spots = lg.qb+lg.rb+lg.wr+lg.te+lg.fx+lg.sf+lg.bn+2; // +K +DEF
   const prem = Math.max(0, (lg.bud - spots) * lg.t);
   for(const id in raw)
-    vbdMap[id] = {v: raw[id], pts: ptsOf[id], auc: totalVOR>0? Math.max(1, Math.round(raw[id]/totalVOR*prem + 1)) : 1};
+    vbdMap[id] = {v: raw[id], pts: ptsOf[id], tier: tierOf[id],
+                  auc: totalVOR>0? Math.max(1, Math.round(raw[id]/totalVOR*prem + 1)) : 1};
   vbdCut = cut;
 }
 
@@ -490,7 +534,7 @@ function compute(){
     if(avg==null && yahoo!=null) avg = yahoo + 0.01; // no expert coverage: fall back so they still list
     const vb = vbdMap[p.id];
     return {...p, avg, hi, lo, spread: (hi!=null&&lo!=null)? lo-hi : null, yahoo, udog, n:vals.length,
-            sd: p.r.sd ?? null, vbd: vb? vb.v : null, auc: vb? vb.auc : null,
+            sd: p.r.sd ?? null, vbd: vb? vb.v : null, auc: vb? vb.auc : null, tier: vb? vb.tier : null,
             live: live[p.id] ?? null, srcs: keys.filter(k=>p.r[k]!=null)};
   }).filter(r=>r.avg!=null);
   rows.sort((a,b)=>a.avg-b.avg);
@@ -538,7 +582,7 @@ function renderBoard(){
     const src = r.n? `${r.n} src` : `ADP only`;
     return `<tr class="${st}" data-id="${r.id}">
       <td class="rank num">${r.rank}</td>
-      <td><span class="tag ${r.pos}">${r.prank}</span></td>
+      <td><span class="tag ${r.pos}">${r.prank}</span>${r.tier? `<span class="tierb${r.tier<=2?' hot':''}" title="Projection tier ${r.tier} at ${r.pos}">T${r.tier}</span>`:""}</td>
       <td class="name">${r.name}<span class="meta">${r.team||"FA"} · bye ${r.bye||"?"} · ${src}${r.team==="FA"?' · <em>free agent</em>':''}</span></td>
       <td class="num">${r.avg.toFixed(1)}</td>
       <td>${hilo}</td>
@@ -591,7 +635,7 @@ function renderClock(){
         if(drop>=1) vona = ` · <b style="color:var(--down)">−${drop.toFixed(0)}</b> by #${win}`;
       }
     }
-    cells.push({lab:`Next ${P}`, who:a.name, sub:`#${a.rank}${a.val!=null?` · <b>${a.val>0?'+':''}${a.val.toFixed(1)}</b>`:''}${vona}`});
+    cells.push({lab:`Next ${P}${a.tier? ` · T${a.tier}`:""}`, who:a.name, sub:`#${a.rank}${a.val!=null?` · <b>${a.val>0?'+':''}${a.val.toFixed(1)}</b>`:''}${vona}`});
   });
   document.getElementById("clock").innerHTML = cells.map(c=>`<div class="cell"><div class="lab">${c.lab}</div><div class="who">${c.who}</div><div class="sub">${c.sub}</div></div>`).join("");
 }
@@ -628,9 +672,38 @@ function renderTeam(){
     : `<li class="empty">No picks yet. Tap ★ on the board when you draft someone.</li>`;
 }
 
+/* my picks: for each of my snake picks, who is likely still there (ADP-based) and the best of them by VAL */
+function myPicks(lg, rounds){
+  const out = [];
+  for(let r=1; r<=rounds; r++) out.push((r%2? lg.dp : lg.t+1-lg.dp) + (r-1)*lg.t);
+  return out;
+}
+function renderPlan(){
+  const el = document.getElementById("plan"), note = document.getElementById("planNote");
+  const lg = lgNow();
+  if(!(lg.dp>=1 && lg.dp<=lg.t)){
+    note.textContent = "";
+    el.innerHTML = `<li class="empty">Set your draft slot in League → Pick to see who should be there at each of your picks.</li>`;
+    return;
+  }
+  const rounds = lg.qb+lg.rb+lg.wr+lg.te+lg.fx+lg.sf+lg.bn+2;
+  const cur = Object.keys(state.drafted).length + 1;
+  const avail = rows.filter(r=>!state.drafted[r.id]);
+  const picks = myPicks(lg, rounds);
+  note.textContent = `Slot ${lg.dp} of ${lg.t}, ${rounds} rounds. Candidates are players whose ADP says they should still be there (3-pick cushion), best VAL first; gold = the pick. Updates as the draft goes.`;
+  el.innerHTML = picks.map((p,i)=>{
+    const done = p < cur, now = !done && (picks.find(x=>x>=cur)===p);
+    const cands = avail.filter(x=>((x.yahoo ?? x.rank) >= p-3))
+      .sort((a,b)=>(b.vbd ?? -999)-(a.vbd ?? -999)).slice(0,5);
+    const body = done? `<span class="plan-note">passed</span>` :
+      cands.map((c,j)=>`<span class="cand${j===0?' top':''}"><span class="tag ${c.pos}">${c.prank}</span>${c.name}${c.vbd!=null?` <em>${c.vbd.toFixed(0)}</em>`:""}${c.tier?` <i>T${c.tier}</i>`:""}</span>`).join("");
+    return `<li class="${done?'done':''}${now?' now':''}"><div class="pk">#${p}<span>round ${i+1}</span></div>${body}</li>`;
+  }).join("");
+}
+
 function render(){
   renderClock();
-  if(tab==="board") renderBoard(); else if(tab==="values") renderValues(); else renderTeam();
+  if(tab==="board") renderBoard(); else if(tab==="values") renderValues(); else if(tab==="plan") renderPlan(); else renderTeam();
 }
 function syncFmtButtons(){ document.querySelectorAll("[data-fmt]").forEach(b=>b.setAttribute("aria-pressed", b.dataset.fmt===fmt)); }
 
@@ -672,7 +745,7 @@ document.querySelector(".tabs").addEventListener("click", e=>{
   const b = e.target.closest("[data-tab]"); if(!b) return;
   tab = b.dataset.tab;
   document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected", x===b));
-  ["board","values","team"].forEach(t=>document.getElementById("tab-"+t).hidden = t!==tab);
+  ["board","values","team","plan"].forEach(t=>document.getElementById("tab-"+t).hidden = t!==tab);
   render();
 });
 document.querySelector(".filters").addEventListener("click", e=>{
