@@ -869,6 +869,7 @@ async function ySyncPoll(){
 /* the Draft Board Sync browser extension posts picks straight into the page */
 window.addEventListener("message", e=>{
   if(e.source!==window || !e.data || e.data.source!=="draft-board-sync") return;
+  if(!(e.data.picks||[]).length) return; // nothing scraped: stay quiet, don't clobber the status line
   applyPicks({picks:e.data.picks, league:e.data.league}, "Extension sync");
 });
 ySyncBtn.addEventListener("click", ()=>{

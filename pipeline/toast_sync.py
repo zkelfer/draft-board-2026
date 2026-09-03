@@ -59,6 +59,7 @@ def poll(db, me, seen):
                 if not m: continue
                 name, mgr = m.group(1).strip(), m.group(2).strip()
                 managers.add(mgr)
+                nid = str(nid)
                 if nid in seen: continue
                 seen[nid] = {"name": name, "mgr": mgr, "title": title, "arr": arr}
             # optional backfill for picks that expired from the toast history:
@@ -113,7 +114,14 @@ if __name__ == "__main__":
     ap.add_argument("--me", default="", help="substring of your Yahoo manager name (marks your picks ★)")
     a = ap.parse_args()
     if not a.db or not os.path.exists(a.db): sys.exit(f"notification db not found: {a.db!r}")
-    seen = {}
+    SEEN_FILE = pathlib.Path(__file__).parent.parent/"data_private"/"toast_seen.json"
+    seen = json.load(open(SEEN_FILE)) if SEEN_FILE.exists() else {}
+    def persist():
+        while True:
+            time.sleep(5)
+            try: json.dump(seen, open(SEEN_FILE, "w"))
+            except Exception as e: print("persist error:", e, flush=True)
+    threading.Thread(target=persist, daemon=True).start()
     threading.Thread(target=poll, args=(a.db, a.me, seen), daemon=True).start()
     time.sleep(1.5)
     print(f"toast sync: {len(state['picks'])} picks so far; managers seen: {state['managers']}")
