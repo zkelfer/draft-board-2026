@@ -839,16 +839,25 @@ function applyPicks(j, label){
   // several drafts can be live at once: choose the league whose name matches this slot's name
   if(j.leagues && Object.keys(j.leagues).length){
     const names = Object.keys(j.leagues), want = (state.name||"").trim().toLowerCase();
-    let pick = names.length===1? names[0] : null;
-    if(!pick && want) pick = names.find(n=>n.toLowerCase().includes(want) || want.includes(n.toLowerCase().slice(0,12)));
-    if(!pick){ setStatus(`${label}: ${names.length} drafts live — name this slot to match one of: ${names.join(" / ")}`); return; }
+    const match = n => n.toLowerCase().includes(want) || want.includes(n.toLowerCase().slice(0,12));
+    let pick = want? names.find(match) : (names.length===1? names[0] : null);
+    if(!pick){ setStatus(`${label}: ${names.length===1? `feed is "${names[0]}"` : names.length+" drafts live"} — name this slot to match it`); return; }
     j = {picks: j.leagues[pick], league: pick};
   }
   const idx = playerIndex();
+  // abbreviated room names ("J. GIBBS" + RB + DET): match on initial + last name + position + team
+  const fixTeam = t => (t||"").toUpperCase().replace("JAX","JAC").replace("WSH","WAS");
+  const abbrevMatch = pk => {
+    const m = /^([a-z])\.?\s+(.+)$/.exec((pk.name||"").toLowerCase()); if(!m) return null;
+    const ini = m[1], last = nk(m[2]).replace(/\s+/g," "), team = fixTeam(pk.team);
+    const cands = DATA.filter(p => p.pos===pk.pos && (!team || p.team===team) &&
+      nk(p.name).startsWith(ini) && nk(p.name).endsWith(last));
+    return cands.length===1? cands[0].id : null;
+  };
   let changed = 0, unmatched = 0;
   (j.picks||[]).forEach(pk=>{
-    const key = pk.pos==="DEF" ? "def_"+(pk.team==="JAX"?"JAC":pk.team) : nk(pk.name||"");
-    const id = idx[key];
+    const key = pk.pos==="DEF" ? "def_"+fixTeam(pk.team) : nk(pk.name||"");
+    const id = idx[key] || (pk.abbrev? abbrevMatch(pk) : null);
     if(!id){ unmatched++; return; }
     const want = pk.mine? "mine" : "gone";
     // never downgrade a manual ★ to ✕

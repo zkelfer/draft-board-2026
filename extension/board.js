@@ -18,10 +18,18 @@
       } catch (e) {}
     }, 1500);
   }
-  chrome.storage.local.get('draft', r => push(r.draft));
-  chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.draft) push(ch.draft.newValue); });
+  function pushRoom(rm) {
+    if (!rm || !(rm.picks || []).length) return;
+    window.postMessage({ source: 'draft-board-sync', leagues: { [rm.league || 'Draft room']: rm.picks }, updated: rm.updated || 0 }, '*');
+  }
+  chrome.storage.local.get(['draft', 'room'], r => { push(r.draft); pushRoom(r.room); });
+  chrome.storage.onChanged.addListener((ch, area) => {
+    if (area !== 'local') return;
+    if (ch.draft) push(ch.draft.newValue);
+    if (ch.room) pushRoom(ch.room.newValue);
+  });
   window.addEventListener('message', e => {
     if (e.source === window && e.data && e.data.source === 'draft-board-page' && e.data.type === 'ping')
-      chrome.storage.local.get('draft', r => push(r.draft));
+      chrome.storage.local.get(['draft', 'room'], r => { push(r.draft); pushRoom(r.room); });
   });
 })();

@@ -105,6 +105,27 @@
     } catch (e) {}
   }
 
+  // Second source: the room's "Last: J. GIBBS (RB · DET) <Manager>" line, which includes
+  // your own picks (Yahoo doesn't toast those). Accumulated across ticks while the tab is open.
+  const room = { league: '', picks: [] };
+  function readRoom() {
+    const text = (document.body.innerText || '').replace(/\s+/g, ' ');
+    const lg = text.match(/FOOTBALL DRAFT\s+(.+?)\s+\d{1,2}:\d{2}\b/);
+    if (lg) room.league = lg[1].trim();
+    const m = text.match(/Last:\s*([A-Z])\.\s*([A-Z][A-Z' .-]*?)\s*\((QB|RB|WR|TE|K|DEF|DST)\s*[·•-]\s*([A-Za-z]{2,3})\)\s*(.+?)\s*(?:DRAFT SCOUT|Subscribe|Queue|$)/);
+    if (!m) return;
+    const rec = { pick: room.picks.length + 1, name: m[1] + '. ' + m[2].trim(), pos: m[3].replace('DST', 'DEF'),
+                  team: m[4].toUpperCase(), by: m[5].trim(), mine: /^you\b/i.test(m[5].trim()), abbrev: true };
+    const key = (rec.name + '|' + rec.team).toLowerCase();
+    if (!room.picks.some(p => (p.name + '|' + p.team).toLowerCase() === key)) {
+      room.picks.push(rec);
+      chrome.storage.local.set({ room: { ...room, updated: Date.now(), url: location.href } });
+      console.log('[draft-board-sync] room pick', rec.pick, rec.name, rec.pos, rec.team, 'by', rec.by, rec.mine ? '★' : '');
+      report('room', { league: room.league, picks: room.picks });
+    }
+  }
+  setInterval(() => { try { readRoom(); } catch (e) {} }, 2000);
+
   let last = '';
   function tick() {
     try {
