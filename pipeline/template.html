@@ -902,11 +902,11 @@ function showSync(){
   if(fresh("helper")) parts.push("helper: "+syncInfo.helper);
   if(syncInfo.ext && !fresh("ext") && !syncInfo.helper) parts.push("room feed stale");
   ySyncBtn.textContent = parts.length? "Sync ●" : "Sync";
-  setStatus(parts.length? "Sync — "+parts.join(" | ") : (syncInfo.helper===null && syncInfo.ext===null? "Sync waiting — no helper on localhost:8737 and no extension picks yet" : ""));
+  setStatus(parts.length? "Sync — "+parts.join(" | ") : (syncInfo.helper===null && syncInfo.ext===null? "Sync waiting — no helper on 127.0.0.1:8737 and no extension picks yet" : ""));
 }
 async function helperPoll(){
   try{
-    const res = await fetch("http://localhost:8737/drafted.json", {cache:"no-store"});
+    const res = await fetch("http://127.0.0.1:8737/drafted.json", {cache:"no-store"});
     if(!res.ok) throw new Error(res.status);
     applyPicks(await res.json(), "helper");
   }catch(e){ if(syncInfo.helper){ syncInfo.helper = null; showSync(); } }
