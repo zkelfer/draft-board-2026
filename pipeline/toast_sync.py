@@ -11,13 +11,21 @@ the board's "Yahoo sync" button works unchanged.
     python3 pipeline/toast_sync.py --me "zach"      # substring of your Yahoo manager name
 
 Requires: Chrome notifications allowed for football.fantasysports.yahoo.com
-(they are, if you're seeing the toasts). Works on any Windows+WSL machine.
+(they are, if you're seeing the toasts). Runs on Windows (native python or WSL).
+On a Mac there is no toast database: use the browser extension + the hosted board instead.
 """
 import argparse, json, os, re, shutil, sqlite3, sys, threading, time, pathlib, glob
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-DEFAULT_DB = next(iter(glob.glob("/mnt/c/Users/*/AppData/Local/Microsoft/Windows/Notifications/wpndatabase.db")), "")
-TMP = pathlib.Path("/tmp/toast_sync")
+def _find_db():
+    # native Windows python, then WSL
+    la = os.environ.get("LOCALAPPDATA")
+    cands = ([os.path.join(la, "Microsoft", "Windows", "Notifications", "wpndatabase.db")] if la else []) + \
+            glob.glob("/mnt/c/Users/*/AppData/Local/Microsoft/Windows/Notifications/wpndatabase.db")
+    return next((c for c in cands if os.path.exists(c)), "")
+DEFAULT_DB = _find_db()
+import tempfile
+TMP = pathlib.Path(tempfile.gettempdir())/"toast_sync"
 PORT = 8737
 CITY = {"Arizona":"ARI","Atlanta":"ATL","Baltimore":"BAL","Buffalo":"BUF","Carolina":"CAR","Chicago":"CHI",
   "Cincinnati":"CIN","Cleveland":"CLE","Dallas":"DAL","Denver":"DEN","Detroit":"DET","Green Bay":"GB",

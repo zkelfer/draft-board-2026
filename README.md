@@ -65,25 +65,43 @@ Std / Half / PPR toggle.
 | DraftSheets workbook (shared) | Projections (VAL column) | Any (recomputed) | 8/30 |
 | Subvertadown TapThatDraft | Value board (SubD column) | 1.0 PPR, 12-team | 8/31 |
 
-## Draft day (Yahoo, Windows + WSL)
+## Set up on another computer
 
-Two commands, then nothing to click:
+```
+git clone https://github.com/zkelfer/draft-board-2026.git
+cd draft-board-2026
+```
+Nothing to build — `dist/index.html` is committed and the hosted copy is at
+https://zkelfer.github.io/draft-board-2026/. Python 3 (stdlib only) is the only
+requirement for the draft-day helper. `data_private/` is not in the repo and is not
+needed on draft day (it only feeds the daily rebuild).
 
+**Install the browser extension (once, any OS):** Chrome → `chrome://extensions` →
+Developer mode → *Load unpacked* → pick the `extension/` folder. It reads the Yahoo
+draft room's "Round R, Pick P / Last: …" lines and pushes every pick — yours
+included — into the board tab.
+
+**Move your prep over:** on the old machine, board → League → *Copy state*; on the
+new one, *Paste state*. All five slots (marks, names, league settings) come across.
+
+## Draft day
+
+**Windows (native Python or WSL):**
 ```
 python3 pipeline/toast_sync.py --me "<your Yahoo manager name>"
 ```
-then open **http://127.0.0.1:8737/** — that is the board, served locally on the same
-origin as the pick feed (so the browser never asks for local-network permission).
-Set the slot's League → Teams and Pick; sync is on by default and stays on.
+then open **http://127.0.0.1:8737/** — the board served locally on the same origin
+as the pick feed, so the browser never asks for permissions. Set the slot's
+League → Teams and Pick. Sync is on by default and stays on. Picks arrive from
+Windows' notification history of Yahoo's Chrome toasts (everyone's picks but your
+own) plus the extension (every pick, with its real number; yours are ★'d by pick
+number).
 
-Picks come from two sources at once: Windows' notification history of Yahoo's
-Chrome toasts ("X drafted by Y" — everyone's picks but your own), and the
-**Draft Board Sync** extension (`extension/`, load unpacked once) which reads the
-draft room's "Round R, Pick P / Last: …" lines — every pick with its real number,
-yours included. Your picks are marked ★ by pick number from League → Pick.
+**Mac / anything else:** just the extension + the hosted board — no helper needed.
+The extension is the complete feed; the hosted board accepts it directly.
 
-The hosted board works too, but Chrome will ask once to allow local-network access.
-Saved state is per-browser: League → Copy state / Paste state moves all five slots.
+Never change the running setup during a live draft. Do a Yahoo mock first and
+confirm the status line reads "Sync — room: N picks …" (or "helper: N picks").
 
 ## Yahoo Fantasy Sports API (planned, read-only)
 
