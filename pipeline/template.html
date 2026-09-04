@@ -257,7 +257,7 @@ details.src li{margin:3px 0}
       <input id="slotName" placeholder="League name" aria-label="League name">
     </div>
     <div class="spacer"></div>
-    <button class="btn" id="ysync" title="Auto-mark drafted players from the yahoo_sync.py helper running on this machine (see README)">Yahoo sync</button>
+    <button class="btn" id="ysync" title="Draft sync is always on: picks arrive from the local helper (toast_sync.py) and/or the Draft Board Sync extension. Click to pause.">Sync</button>
     <button class="btn" id="live" title="Pull live mock-draft ADP from FantasyFootballCalculator for this format">Refresh live ADP</button>
     <button class="btn danger" id="reset">Clear this draft</button>
     <span class="status" id="status"></span>
@@ -502,7 +502,7 @@ function computeVBD(){
 
 function fmtKey(){ return "draft:"+slot; }
 async function loadSlot(){
-  state = {name:"",drafted:{},league:null};
+  state = {name:"",drafted:{},league:null,curPick:null};
   try{
     const r = await window.storage.get(fmtKey(), false);
     if(r && r.value){ const v = JSON.parse(r.value); state = {name:v.name||"", drafted:v.drafted||{}, league:v.league||null}; if(v.fmt) fmt=v.fmt; }
@@ -617,7 +617,7 @@ function renderClock(){
   const lg = lgNow();
   let win = null;
   if(lg.dp>=1 && lg.dp<=lg.t){
-    const cur = Object.keys(state.drafted).length + 1;
+    const cur = state.curPick || Object.keys(state.drafted).length + 1;
     const mine = [];
     for(let r=1; mine.length<2; r++){
       const p = (r%2? lg.dp : lg.t+1-lg.dp) + (r-1)*lg.t;
@@ -689,7 +689,7 @@ function renderPlan(){
     return;
   }
   const rounds = lg.qb+lg.rb+lg.wr+lg.te+lg.fx+lg.sf+lg.bn+2;
-  const cur = Object.keys(state.drafted).length + 1;
+  const cur = state.curPick || Object.keys(state.drafted).length + 1;
   const avail = rows.filter(r=>!state.drafted[r.id]);
   const picks = myPicks(lg, rounds);
   note.textContent = `Slot ${lg.dp} of ${lg.t}, ${rounds} rounds. Candidates are players whose ADP says they should still be there (3-pick cushion), best VAL first; gold = the pick. Updates as the draft goes.`;
@@ -835,70 +835,98 @@ function playerIndex(){
   DATA.forEach(p=>{ idx[p.pos==="DEF"? "def_"+p.team : nk(p.name)] = p.id; });
   return idx;
 }
-function applyPicks(j, label){
-  // several drafts can be live at once: choose the league whose name matches this slot's name
-  if(j.leagues && Object.keys(j.leagues).length){
-    const names = Object.keys(j.leagues), want = (state.name||"").trim().toLowerCase();
-    const match = n => n.toLowerCase().includes(want) || want.includes(n.toLowerCase().slice(0,12));
-    let pick = want? names.find(match) : (names.length===1? names[0] : null);
-    if(!pick){ setStatus(`${label}: ${names.length===1? `feed is "${names[0]}"` : names.length+" drafts live"} — name this slot to match it`); return; }
-    j = {picks: j.leagues[pick], league: pick};
-  }
-  const idx = playerIndex();
-  // abbreviated room names ("J. GIBBS" + RB + DET): match on initial + last name + position + team
-  const fixTeam = t => (t||"").toUpperCase().replace("JAX","JAC").replace("WSH","WAS");
-  const abbrevMatch = pk => {
-    const m = /^([a-z])\.?\s+(.+)$/.exec((pk.name||"").toLowerCase()); if(!m) return null;
-    const ini = m[1], last = nk(m[2]).replace(/\s+/g," "), team = fixTeam(pk.team);
-    const cands = DATA.filter(p => p.pos===pk.pos && (!team || p.team===team) &&
-      nk(p.name).startsWith(ini) && nk(p.name).endsWith(last));
-    return cands.length===1? cands[0].id : null;
-  };
-  let changed = 0, unmatched = 0;
-  (j.picks||[]).forEach(pk=>{
-    const key = pk.pos==="DEF" ? "def_"+fixTeam(pk.team) : nk(pk.name||"");
-    const id = idx[key] || (pk.abbrev? abbrevMatch(pk) : null);
-    if(!id){ unmatched++; return; }
-    const want = pk.mine? "mine" : "gone";
-    // never downgrade a manual ★ to ✕
-    if(state.drafted[id]!==want && !(state.drafted[id]==="mine" && want==="gone")){
-      state.drafted[id] = want; changed++;
-    }
-  });
-  if(changed){ save(); compute(); render(); }
-  setStatus(`${label}: ${(j.picks||[]).length} picks in${unmatched? ` (${unmatched} unmatched)`:""}${j.league? " · "+j.league : ""}`);
+/* ---- draft sync: always on, zero configuration ----
+   Two sources feed applyPicks(): the local helper (toast_sync.py / yahoo_sync.py) polled at
+   localhost:8737, and the Draft Board Sync extension posting the draft room's pick list into
+   the page. Payload: {leagues:{name:[{pick,name,pos,team,by,mine,abbrev}]}, cur:{name:pickOnClock},
+   newest:name, numbered:true when pick numbers are the room's real ones}. */
+const NICK = {rams:"LAR",texans:"HOU",broncos:"DEN",seahawks:"SEA",eagles:"PHI",vikings:"MIN",jaguars:"JAC",
+  patriots:"NE",steelers:"PIT",chargers:"LAC",lions:"DET",bills:"BUF",ravens:"BAL",cowboys:"DAL",packers:"GB",
+  chiefs:"KC",cardinals:"ARI",falcons:"ATL",panthers:"CAR",bears:"CHI",bengals:"CIN",browns:"CLE",colts:"IND",
+  raiders:"LV",dolphins:"MIA",saints:"NO",giants:"NYG",jets:"NYJ","49ers":"SF",buccaneers:"TB",titans:"TEN",commanders:"WAS"};
+const ALIAS = {"kenny gainwell":"kenneth gainwell","chig okonkwo":"chigoziem okonkwo"};
+const fixTeam = t => (t||"").toUpperCase().replace("JAX","JAC").replace("WSH","WAS");
+const syncInfo = {helper:null, ext:null, helperAt:0, extAt:0};
+
+function pickLeague(j){
+  if(!(j.leagues && Object.keys(j.leagues).length)) return j.picks? {picks:j.picks, league:j.league||""} : null;
+  const names = Object.keys(j.leagues), want = (state.name||"").trim().toLowerCase();
+  const match = n => n.toLowerCase().includes(want) || want.includes(n.toLowerCase().slice(0,12));
+  // a named slot only takes its own league; an unnamed slot follows the most recently active one
+  let pick = want? names.find(match) : (j.newest && names.includes(j.newest)? j.newest : names[names.length-1]);
+  if(!pick) return null;
+  return {picks: j.leagues[pick], league: pick, cur: j.cur? j.cur[pick] : null};
 }
-async function ySyncPoll(){
+// abbreviated room names ("J. GIBBS" + RB + DET): initial + last name + position + team
+function abbrevMatch(pk){
+  const m = /^([a-z])\.?\s+(.+)$/.exec((pk.name||"").toLowerCase()); if(!m) return null;
+  const ini = m[1], last = nk(m[2]).replace(/\s+/g," "), team = fixTeam(pk.team);
+  let cands = DATA.filter(p => p.pos===pk.pos && (!team || p.team===team) &&
+    nk(p.name).startsWith(ini) && nk(p.name).endsWith(last));
+  if(cands.length>1){ // e.g. Bijan vs Brian Robinson, both ATL RBs: the undrafted, higher-ranked one
+    const rk = id => (rows.find(r=>r.id===id)||{}).rank ?? 999;
+    const open = cands.filter(p=>!state.drafted[p.id]);
+    cands = (open.length? open : cands).sort((a,b)=>rk(a.id)-rk(b.id)).slice(0,1);
+  }
+  return cands.length===1? cands[0].id : null;
+}
+function matchId(pk, idx){
+  const name = nk(pk.name||"");
+  if(pk.pos==="DEF" || (!pk.pos && NICK[name])) return idx["def_"+(fixTeam(pk.team) || NICK[name] || "")] || null;
+  const key = ALIAS[name] || name;
+  return idx[key] || (pk.abbrev? abbrevMatch(pk) : null);
+}
+function applyPicks(j, src){
+  const sel = pickLeague(j);
+  if(!sel){ syncInfo[src] = `no league named like "${state.name}"`; showSync(); return; }
+  const idx = playerIndex(), lg = lgNow();
+  const myNums = new Set((j.numbered && lg.dp>=1 && lg.dp<=lg.t)? myPicks(lg, 30) : []);
+  let changed = 0; const unmatched = [];
+  (sel.picks||[]).forEach(pk=>{
+    const id = matchId(pk, idx);
+    if(!id){ unmatched.push(pk.name); return; }
+    const want = (pk.mine || myNums.has(pk.pick))? "mine" : "gone";
+    // never downgrade a manual ★ to ✕
+    if(state.drafted[id]!==want && !(state.drafted[id]==="mine" && want==="gone")){ state.drafted[id] = want; changed++; }
+  });
+  if(sel.cur && sel.cur!==state.curPick){ state.curPick = sel.cur; changed++; }
+  if(changed){ save(); compute(); render(); }
+  syncInfo[src] = `${(sel.picks||[]).length} picks · ${sel.league}${unmatched.length? ` · unmatched: ${unmatched.slice(0,3).join(", ")}${unmatched.length>3?"…":""}` : ""}`;
+  syncInfo[src+"At"] = Date.now();
+  showSync();
+}
+function showSync(){
+  const fresh = k => syncInfo[k] && Date.now()-syncInfo[k+"At"] < 60000;
+  const parts = [];
+  if(fresh("ext")) parts.push("room: "+syncInfo.ext);
+  if(fresh("helper")) parts.push("helper: "+syncInfo.helper);
+  if(syncInfo.ext && !fresh("ext") && !syncInfo.helper) parts.push("room feed stale");
+  ySyncBtn.textContent = parts.length? "Sync ●" : "Sync";
+  setStatus(parts.length? "Sync — "+parts.join(" | ") : (syncInfo.helper===null && syncInfo.ext===null? "Sync waiting — no helper on localhost:8737 and no extension picks yet" : ""));
+}
+async function helperPoll(){
   try{
     const res = await fetch("http://localhost:8737/drafted.json", {cache:"no-store"});
     if(!res.ok) throw new Error(res.status);
-    applyPicks(await res.json(), "Yahoo sync");
-  }catch(e){
-    setStatus("Yahoo sync: helper not reachable — run pipeline/yahoo_sync.py on this machine");
-  }
+    applyPicks(await res.json(), "helper");
+  }catch(e){ if(syncInfo.helper){ syncInfo.helper = null; showSync(); } }
 }
 /* the Draft Board Sync browser extension posts picks straight into the page */
 window.addEventListener("message", e=>{
   if(e.source!==window || !e.data || e.data.source!=="draft-board-sync") return;
-  if(!(e.data.picks||[]).length) return; // nothing scraped: stay quiet, don't clobber the status line
-  applyPicks({picks:e.data.picks, league:e.data.league}, "Extension sync");
+  const d = e.data;
+  if(d.leagues && Object.keys(d.leagues).length) applyPicks({leagues:d.leagues, cur:d.cur, newest:d.newest, numbered:true}, "ext");
+  else if((d.picks||[]).length) applyPicks({picks:d.picks, league:d.league}, "ext");
 });
-function ySyncStart(){
-  ySyncBtn.textContent = "Yahoo sync ●";
-  ySyncPoll();
-  ySyncTimer = setInterval(ySyncPoll, 8000);
-  try{ localStorage.setItem("ysync", "on"); }catch(e){}
-}
+let syncTimer = null;
+function syncStart(){ if(syncTimer) return; helperPoll(); syncTimer = setInterval(helperPoll, 5000); showSync(); }
 ySyncBtn.addEventListener("click", ()=>{
-  if(ySyncTimer){
-    clearInterval(ySyncTimer); ySyncTimer=null; ySyncBtn.textContent="Yahoo sync"; setStatus("Yahoo sync off");
-    try{ localStorage.removeItem("ysync"); }catch(e){}
-    return;
-  }
-  ySyncStart();
+  if(syncTimer){ clearInterval(syncTimer); syncTimer=null; ySyncBtn.textContent="Sync off"; setStatus("Sync paused — click to resume"); try{ localStorage.setItem("ysync","off"); }catch(e){} return; }
+  try{ localStorage.removeItem("ysync"); }catch(e){}
+  syncStart();
 });
-// stay on across reloads
-try{ if(localStorage.getItem("ysync")==="on") setTimeout(ySyncStart, 800); }catch(e){}
+// on by default; only an explicit pause is remembered
+try{ if(localStorage.getItem("ysync")!=="off") setTimeout(syncStart, 600); else ySyncBtn.textContent="Sync off"; }catch(e){ setTimeout(syncStart, 600); }
 
 /* move draft state between machines via clipboard */
 async function allSlotsState(){

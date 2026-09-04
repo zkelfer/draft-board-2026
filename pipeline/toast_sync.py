@@ -26,6 +26,18 @@ CITY = {"Arizona":"ARI","Atlanta":"ATL","Baltimore":"BAL","Buffalo":"BUF","Carol
   "Minnesota":"MIN","New England":"NE","New Orleans":"NO","New York Giants":"NYG","New York Jets":"NYJ",
   "NY Giants":"NYG","NY Jets":"NYJ","Philadelphia":"PHI","Pittsburgh":"PIT","Seattle":"SEA",
   "San Francisco":"SF","Tampa Bay":"TB","Tennessee":"TEN","Washington":"WAS"}
+# Yahoo toasts name a defense by nickname only ("Rams drafted by …")
+NICK = {"Cardinals":"ARI","Falcons":"ATL","Ravens":"BAL","Bills":"BUF","Panthers":"CAR","Bears":"CHI","Bengals":"CIN",
+  "Browns":"CLE","Cowboys":"DAL","Broncos":"DEN","Lions":"DET","Packers":"GB","Texans":"HOU","Colts":"IND",
+  "Jaguars":"JAC","Chiefs":"KC","Raiders":"LV","Chargers":"LAC","Rams":"LAR","Dolphins":"MIA","Vikings":"MIN",
+  "Patriots":"NE","Saints":"NO","Giants":"NYG","Jets":"NYJ","Eagles":"PHI","Steelers":"PIT","Seahawks":"SEA",
+  "49ers":"SF","Buccaneers":"TB","Titans":"TEN","Commanders":"WAS"}
+def def_team(nm):
+    w = nm.split()
+    if nm in CITY: return CITY[nm]
+    if nm in NICK: return NICK[nm]
+    if w and w[-1] in NICK and " ".join(w[:-1]) in CITY: return NICK[w[-1]]
+    return None
 
 def read_toasts(db):
     """Copy db (+wal/shm) and return [(id, arrival, title, body)] for Yahoo draft toasts."""
@@ -47,7 +59,7 @@ def read_toasts(db):
             out.append((nid, arr, texts[0].strip(), texts[1].strip()))
     return out
 
-state = {"picks": [], "league": "", "leagues": {}, "updated": 0, "managers": []}
+state = {"picks": [], "league": "", "leagues": {}, "newest": "", "updated": 0, "managers": []}
 
 def poll(db, me, seen):
     while True:
@@ -79,13 +91,14 @@ def poll(db, me, seen):
             for nid, rec in sorted(seen.items(), key=lambda kv: kv[1]["arr"]):
                 lg = (rec.get("title") or "?").replace(" Draft", "")
                 nm, pos, team = rec["name"], "", ""
-                if nm in CITY: pos, team, nm = "DEF", CITY[nm], nm
+                dt = def_team(nm)
+                if dt: pos, team = "DEF", dt
                 lst = leagues.setdefault(lg, [])
                 lst.append({"pick": len(lst)+1, "name": nm, "pos": pos, "team": team,
                             "mine": bool(me) and me.lower() in rec["mgr"].lower(), "by": rec["mgr"]})
             if leagues and leagues != state.get("leagues"):
                 newest = max(leagues, key=lambda k: max(r["arr"] for r in seen.values() if (r.get("title") or "?").replace(" Draft","")==k))
-                state["leagues"] = leagues
+                state["leagues"] = leagues; state["newest"] = newest
                 state["picks"] = leagues[newest]; state["league"] = newest
                 state["updated"] = time.time()
                 last = leagues[newest][-1]

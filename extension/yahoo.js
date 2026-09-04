@@ -1,151 +1,74 @@
-/* Draft Board Sync — Yahoo draft room content script.
-   Scrapes the pick list every 5s and stores it in chrome.storage.local as
-   {draft: {picks:[{pick,name,pos,team,mine}], league, updated, url}}.
-   board.js (on the Draft Board tab) forwards that to the page.
-
-   The Yahoo draft-room DOM is not documented, so scrape() uses several
-   defensive strategies. If the board shows 0 picks during a live draft, open
-   DevTools on this tab and copy the "[draft-board-sync] probe" console line —
-   it lists the page's repeated class names and visible text, enough to tune
-   the selectors below in minutes. */
+/* Draft Board Sync — Yahoo draft room reader.
+   Reads two lines the draft room always shows:
+     "… Round R, Pick P …" (or "YOUR TURN • ROUND R, PICK P")  → the pick on the clock
+     "Last: J. GIBBS (RB · DET) <Team name>"                     → the pick just made (P−1)
+   Every pick is recorded with its REAL number and manager (your own picks included — Yahoo
+   never toasts those). Your team name is learned the first time a pick is made on your turn.
+   Result is stored for board.js to forward into the board tab, and reported to the optional
+   local monitor. No guessing at Yahoo's obfuscated DOM. */
 (function () {
-  if (!/draft|mock/i.test(location.href)) return;
+  if (!/draftclient|draft|mock/i.test(location.href)) return;
 
-  const POS   = /\b(QB|RB|WR|TE|K|DEF|DST)\b/;
-  const TEAMS = /\b(ARI|ATL|BAL|BUF|CAR|CHI|CIN|CLE|DAL|DEN|DET|GB|HOU|IND|JAX|JAC|KC|LAC|LAR|LV|MIA|MIN|NE|NO|NYG|NYJ|PHI|PIT|SEA|SF|TB|TEN|WAS|WSH)\b/;
-  const MINE  = /(^|[\s_-])(mine|owner|self|you|yours|my-?team)([\s_-]|$)/i;
-  const cls = (el) => (el && el.getAttribute && el.getAttribute('class')) || '';
+  const room = { league: '', picks: [], cur: 0, me: '', myTurnAt: 0, updated: 0, url: location.href };
 
-  const rowOf = (el) => {
-    let n = el;
-    for (let i = 0; n && n !== document.body && i < 8; i++) {
-      if (n.tagName === 'TR' || n.tagName === 'LI') return n;
-      if (/(^|[\s_-])(pick|player|row|result|selection)/i.test(cls(n))) return n;
-      n = n.parentElement;
-    }
-    n = el;
-    for (let i = 0; n && n.parentElement && n.parentElement !== document.body && i < 8; i++) {
-      if (n.parentElement.children.length >= 3) return n;
-      n = n.parentElement;
-    }
-    return el.parentElement || el;
-  };
-
-  const isMine = (row) => {
-    let n = row;
-    for (let i = 0; n && i < 4; i++) {
-      if (MINE.test(cls(n))) return true;
-      if (n.attributes)
-        for (const a of n.attributes)
-          if (MINE.test(a.name) || (a.name.indexOf('data-') === 0 && MINE.test(a.value))) return true;
-      n = n.parentElement;
-    }
-    if (row.querySelectorAll)
-      for (const el of row.querySelectorAll('[class]')) if (MINE.test(cls(el))) return true;
-    return false;
-  };
-
-  const parse = (row, name) => {
-    const text = ((row.innerText || row.textContent) || '').replace(/\s+/g, ' ').trim();
-    let pick = 0, pos = '', team = '', m;
-    m = text.match(/(?:Pick|#)\s*0*(\d{1,3})\b/i) || text.match(/^0*(\d{1,3})[.):\s]/);
-    if (m) pick = parseInt(m[1], 10);
-    m = text.match(/\b([A-Za-z]{2,3})\s*[-–—]\s*(QB|RB|WR|TE|K|DEF|DST)\b/i);
-    if (m) { team = m[1]; pos = m[2]; }
-    if (!pos) { m = text.match(/\b(QB|RB|WR|TE|K|DEF|DST)\s*[-–—]\s*([A-Za-z]{2,3})\b/i); if (m) { pos = m[1]; team = m[2]; } }
-    if (!pos)  { m = text.match(POS);   if (m) pos = m[1]; }
-    if (!team) { m = text.match(TEAMS); if (m) team = m[1]; }
-    pos = pos.toUpperCase().replace('DST', 'DEF');
-    return { pick, name, pos, team: team.toUpperCase(), mine: isMine(row) };
-  };
-
-  function scrape() {
-    const picks = [], seen = new Set();
-    const add = (rec) => { const k = rec.name.toLowerCase(); if (rec.name && !seen.has(k)) { seen.add(k); picks.push(rec); } };
-    for (const a of document.querySelectorAll('a[href*="/nfl/players/"]')) {
-      const name = ((a.innerText || a.textContent) || '').replace(/\s+/g, ' ').trim();
-      if (name.length < 3 || name.length > 40 || !/[A-Za-z]{2}/.test(name)) continue;
-      add(parse(rowOf(a), name));
-    }
-    if (picks.length === 0) {
-      const rows = document.querySelectorAll("[class*='pick' i], [class*='result' i], [class*='selection' i], li, tr");
-      for (const row of rows) {
-        const text = ((row.innerText || '') + '').replace(/\s+/g, ' ').trim();
-        if (!text || text.length > 160 || !POS.test(text)) continue;
-        if (row.querySelector && row.querySelector('li, tr')) continue;
-        const m = text.match(/([A-Z][\w.'-]+(?: [A-Z][\w.'-]+){1,2})/);
-        if (!m) continue;
-        add(parse(row, m[1]));
-      }
-    }
-    const numbered = picks.filter(p => p.pick > 0).length;
-    if (numbered >= picks.length / 2) picks.sort((a, b) => (a.pick || 9999) - (b.pick || 9999));
-    picks.forEach((p, i) => { if (!p.pick) p.pick = i + 1; });
-    let league = '';
-    const lg = document.querySelector("[class*='league' i] h1, [class*='league' i] h2, [class*='leaguename' i], header h1");
-    if (lg) league = (lg.innerText || '').trim();
-    if (!league) league = (document.title || '').replace(/ [|–-] Yahoo.*$/i, '').trim();
-    return { picks, league };
-  }
-
-  function probe() {
-    const counts = {};
-    for (const el of document.querySelectorAll('[class]'))
-      for (const c of cls(el).split(/\s+/)) if (c) counts[c] = (counts[c] || 0) + 1;
-    const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 40);
-    return { url: location.href, title: document.title, classes: top,
-             text: (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 3000) };
-  }
-
-  // optional local monitor (pipeline/sync_monitor.py); silently ignored when it isn't running
   function report(kind, data) {
     try {
       fetch('http://127.0.0.1:8738/report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kind, url: location.href, ...data }) }).catch(() => {});
     } catch (e) {}
   }
+  function persist() {
+    room.updated = Date.now();
+    chrome.storage.local.set({ room });
+  }
 
-  // Second source: the room's "Last: J. GIBBS (RB · DET) <Manager>" line, which includes
-  // your own picks (Yahoo doesn't toast those). Accumulated across ticks while the tab is open.
-  const room = { league: '', picks: [] };
   function readRoom() {
     const text = (document.body.innerText || '').replace(/\s+/g, ' ');
-    const lg = text.match(/FOOTBALL DRAFT\s+(.+?)\s+\d{1,2}:\d{2}\b/);
+    const lg = text.match(/FOOTBALL DRAFT\s+(.+?)\s+(?:\d{1,2}:\d{2}\b|\d+\s+(?:YOUR TURN|[A-Za-z]))/);
     if (lg) room.league = lg[1].trim();
-    const m = text.match(/Last:\s*([A-Z])\.\s*([A-Z][A-Z' .-]*?)\s*\((QB|RB|WR|TE|K|DEF|DST)\s*[·•-]\s*([A-Za-z]{2,3})\)\s*(.+?)\s*(?:DRAFT SCOUT|Subscribe|Queue|$)/);
-    if (!m) return;
-    const rec = { pick: room.picks.length + 1, name: m[1] + '. ' + m[2].trim(), pos: m[3].replace('DST', 'DEF'),
-                  team: m[4].toUpperCase(), by: m[5].trim(), mine: /^you\b/i.test(m[5].trim()), abbrev: true };
-    const key = (rec.name + '|' + rec.team).toLowerCase();
-    if (!room.picks.some(p => (p.name + '|' + p.team).toLowerCase() === key)) {
-      room.picks.push(rec);
-      chrome.storage.local.set({ room: { ...room, updated: Date.now(), url: location.href } });
-      console.log('[draft-board-sync] room pick', rec.pick, rec.name, rec.pos, rec.team, 'by', rec.by, rec.mine ? '★' : '');
-      report('room', { league: room.league, picks: room.picks });
-    }
-  }
-  setInterval(() => { try { readRoom(); } catch (e) {} }, 2000);
 
-  let last = '';
-  function tick() {
-    try {
-      const r = scrape();
-      const j = JSON.stringify(r);
-      if (j !== last) {
-        last = j;
-        chrome.storage.local.set({ draft: { ...r, updated: Date.now(), url: location.href } });
-        console.log('[draft-board-sync]', r.picks.length, 'picks scraped');
-        report('scrape', r);
-      }
-    } catch (e) { console.warn('[draft-board-sync] scrape failed', e); report('error', { error: String(e) }); }
+    // pick on the clock
+    let cur = 0, myTurn = false;
+    let m = text.match(/YOUR TURN\s*[•·]\s*ROUND\s*(\d+),\s*PICK\s*(\d+)/i);
+    if (m) { cur = +m[2]; myTurn = true; }
+    else { m = text.match(/Round\s*(\d+),\s*Pick\s*(\d+)/i); if (m) cur = +m[2]; }
+    if (cur) { room.cur = cur; if (myTurn) room.myTurnAt = cur; }
+
+    // the pick just made
+    let rec = null;
+    m = text.match(/Last:\s*([A-Z])\.\s*([A-Z][A-Z' .-]*?)\s*\((QB|RB|WR|TE|K)\s*[·•-]\s*([A-Za-z]{2,3})\)\s*(.+?)\s*(?:DRAFT SCOUT|Subscribe|Queue|$)/);
+    if (m) rec = { name: m[1] + '. ' + m[2].trim(), pos: m[3], team: m[4].toUpperCase(), by: m[5].trim(), abbrev: true };
+    else {
+      m = text.match(/Last:\s*([A-Z][A-Za-z' .-]+?)\s*\((DEF|DST)\s*[·•-]\s*([A-Za-z]{2,3})\)\s*(.+?)\s*(?:DRAFT SCOUT|Subscribe|Queue|$)/);
+      if (m) rec = { name: m[1].trim(), pos: 'DEF', team: m[3].toUpperCase(), by: m[4].trim() };
+    }
+    if (!rec || !room.cur) return;
+    rec.pick = room.cur - 1;
+    if (rec.pick < 1) return;
+
+    // learn my team name: the pick made on my turn carries it
+    if (room.myTurnAt && rec.pick === room.myTurnAt && !room.me) room.me = rec.by;
+    rec.mine = !!room.me && rec.by === room.me;
+
+    const known = room.picks.find(p => p.pick === rec.pick);
+    if (known) { if (known.name !== rec.name) Object.assign(known, rec); else return; }
+    else room.picks.push(rec);
+    room.picks.sort((a, b) => a.pick - b.pick);
+    if (room.me) room.picks.forEach(p => { p.mine = p.by === room.me; });
+    persist();
+    console.log('[draft-board-sync] pick', rec.pick, rec.name, rec.pos, rec.team, 'by', rec.by, rec.mine ? '★' : '');
+    report('room', { league: room.league, cur: room.cur, me: room.me, picks: room.picks });
   }
-  tick();
-  setInterval(tick, 5000);
-  setTimeout(() => {
-    const p = probe();
-    console.log('[draft-board-sync] probe', JSON.stringify(p));
-    chrome.storage.local.set({ probe: p });
-    report('probe', p);
-  }, 4000);
-  setInterval(() => report('probe', probe()), 60000);
+
+  // resume the pick list if this tab was reloaded mid-draft
+  chrome.storage.local.get('room', r => {
+    const prev = r && r.room;
+    if (prev && prev.url === location.href && Array.isArray(prev.picks)) {
+      room.picks = prev.picks; room.me = prev.me || ''; room.league = prev.league || '';
+    }
+    readRoom();
+    setInterval(() => { try { readRoom(); } catch (e) { console.warn('[draft-board-sync]', e); } }, 1500);
+    // keep the "pick on the clock" fresh even between picks
+    setInterval(() => { const before = room.cur; try { readRoom(); } catch (e) {} if (room.cur !== before) persist(); }, 5000);
+  });
 })();
