@@ -902,7 +902,7 @@ function showSync(){
   if(fresh("helper")) parts.push("helper: "+syncInfo.helper);
   if(syncInfo.ext && !fresh("ext") && !syncInfo.helper) parts.push("room feed stale");
   ySyncBtn.textContent = parts.length? "Sync ●" : "Sync";
-  setStatus(parts.length? "Sync — "+parts.join(" | ") : (syncInfo.helper===null && syncInfo.ext===null? "Sync waiting — no helper on 127.0.0.1:8737 and no extension picks yet" : ""));
+  setStatus(parts.length? "Sync — "+parts.join(" | ") : (syncInfo.helper===null && syncInfo.ext===null? "Sync waiting — run pipeline/toast_sync.py and open the board at http://127.0.0.1:8737/ (hosted board: allow local-network access if Chrome asks)" : ""));
 }
 async function helperPoll(){
   try{

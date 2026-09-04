@@ -65,17 +65,25 @@ Std / Half / PPR toggle.
 | DraftSheets workbook (shared) | Projections (VAL column) | Any (recomputed) | 8/30 |
 | Subvertadown TapThatDraft | Value board (SubD column) | 1.0 PPR, 12-team | 8/31 |
 
-## Draft day on another machine
+## Draft day (Yahoo, Windows + WSL)
 
-The hosted board works anywhere; saved state is per-browser. **League → Copy state**
-puts all five draft slots on the clipboard; **Paste state** on the other machine
-imports them.
+Two commands, then nothing to click:
 
-**Yahoo auto-sync**: run `python3 pipeline/yahoo_sync.py` on the machine you draft
-from (one-time Yahoo app setup in that file's docstring — client id/secret go in
-`data_private/yahoo_app.json`). It polls the league's draft results and serves them
-locally; the board's **Yahoo sync** button then auto-marks every pick (★ for yours)
-every 15 seconds. Manual ★ marks are never overwritten.
+```
+python3 pipeline/toast_sync.py --me "<your Yahoo manager name>"
+```
+then open **http://127.0.0.1:8737/** — that is the board, served locally on the same
+origin as the pick feed (so the browser never asks for local-network permission).
+Set the slot's League → Teams and Pick; sync is on by default and stays on.
+
+Picks come from two sources at once: Windows' notification history of Yahoo's
+Chrome toasts ("X drafted by Y" — everyone's picks but your own), and the
+**Draft Board Sync** extension (`extension/`, load unpacked once) which reads the
+draft room's "Round R, Pick P / Last: …" lines — every pick with its real number,
+yours included. Your picks are marked ★ by pick number from League → Pick.
+
+The hosted board works too, but Chrome will ask once to allow local-network access.
+Saved state is per-browser: League → Copy state / Paste state moves all five slots.
 
 ## Yahoo Fantasy Sports API (planned, read-only)
 

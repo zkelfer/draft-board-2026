@@ -111,7 +111,23 @@ def poll(db, me, seen):
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
+    def do_OPTIONS(self):  # Chrome local-network-access preflight
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "*")
+        self.send_header("Access-Control-Allow-Private-Network", "true")
+        self.end_headers()
     def do_GET(self):
+        if self.path in ("/", "/index.html"):
+            # serve the board itself, same origin as the feed: no browser permission prompts
+            page = pathlib.Path(__file__).parent.parent/"dist"/"index.html"
+            body = page.read_bytes() if page.exists() else b"dist/index.html not built"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers(); self.wfile.write(body); return
         if self.path != "/drafted.json":
             self.send_response(404); self.end_headers(); return
         body = json.dumps(state).encode()
@@ -119,6 +135,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Private-Network", "true")
         self.send_header("Cache-Control", "no-store")
         self.end_headers(); self.wfile.write(body)
 
@@ -139,5 +156,5 @@ if __name__ == "__main__":
     threading.Thread(target=poll, args=(a.db, a.me, seen), daemon=True).start()
     time.sleep(1.5)
     print(f"toast sync: {len(state['picks'])} picks so far; managers seen: {state['managers']}")
-    print(f"serving http://localhost:{PORT}/drafted.json — click 'Yahoo sync' on the board", flush=True)
+    print(f"open the board at http://127.0.0.1:{PORT}/  (feed: /drafted.json)", flush=True)
     HTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
