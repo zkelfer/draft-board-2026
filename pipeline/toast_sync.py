@@ -15,7 +15,7 @@ Requires: Chrome notifications allowed for football.fantasysports.yahoo.com
 On a Mac there is no toast database: use the browser extension + the hosted board instead.
 """
 import argparse, json, os, re, shutil, sqlite3, sys, threading, time, pathlib, glob
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 def _find_db():
     # native Windows python, then WSL
@@ -50,10 +50,16 @@ def def_team(nm):
 def read_toasts(db):
     """Copy db (+wal/shm) and return [(id, arrival, title, body)] for Yahoo draft toasts."""
     TMP.mkdir(exist_ok=True)
-    for suf in ("", "-wal", "-shm"):
+    # Copy only the main db and its -wal (the real data). The -shm is a transient
+    # shared-memory index for WAL mode; on Windows copying it can fail with
+    # [Errno 22] Invalid argument, and it is not needed — SQLite rebuilds it from the
+    # -wal on open. So never copy -shm; drop any stale copy so SQLite regenerates it.
+    for suf in ("", "-wal"):
         src = db + suf
         if os.path.exists(src): shutil.copy(src, TMP/("wpn.db"+suf))
         elif os.path.exists(TMP/("wpn.db"+suf)): os.remove(TMP/("wpn.db"+suf))
+    shm = TMP/"wpn.db-shm"
+    if shm.exists(): shm.unlink()
     con = sqlite3.connect(TMP/"wpn.db")
     rows = con.execute("select n.Id, n.ArrivalTime, n.Payload from Notification n "
                        "join NotificationHandler h on n.HandlerId=h.RecordId "
@@ -165,4 +171,6 @@ if __name__ == "__main__":
     time.sleep(1.5)
     print(f"toast sync: {len(state['picks'])} picks so far; managers seen: {state['managers']}")
     print(f"open the board at http://127.0.0.1:{PORT}/  (feed: /drafted.json)", flush=True)
-    HTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    # ThreadingHTTPServer: serve concurrent pollers (board + extension + any watcher)
+    # without stalling; single-threaded HTTPServer would serialize and time out under load.
+    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

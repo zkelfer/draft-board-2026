@@ -233,6 +233,40 @@ details.src li{margin:3px 0}
   .wrap{padding:0 0 40px}
   table{min-width:790px}
 }
+/* ---- Responsive board table --------------------------------------------
+   13 columns; on a narrow window (e.g. the board split-screened next to the
+   Yahoo draft room) they used to scroll sideways and the ✕/★ draft buttons
+   fell off-screen. Instead drop secondary columns as width shrinks so the
+   essentials always fit with no horizontal scroll. Column order:
+   1# 2Pos 3Player 4Avg 5Hi/Lo 6Spread 7Yahoo 8UD 9SubD 10Live 11VAL 12Value 13✕★
+   Always kept: # · Pos · Player · Value-vs-Yahoo bar · ✕/★.
+   (#tbl beats the `table{min-width}` rules above on specificity.) */
+@media(max-width:1280px){                 /* drop SubD, Live */
+  #tbl{min-width:0}
+  #tbl th:nth-child(9),#tbl td:nth-child(9),
+  #tbl th:nth-child(10),#tbl td:nth-child(10){display:none}
+}
+@media(max-width:1080px){                 /* + Spread, UD */
+  #tbl th:nth-child(6),#tbl td:nth-child(6),
+  #tbl th:nth-child(8),#tbl td:nth-child(8){display:none}
+}
+@media(max-width:900px){                  /* + Avg, Hi/Lo */
+  #tbl th:nth-child(4),#tbl td:nth-child(4),
+  #tbl th:nth-child(5),#tbl td:nth-child(5){display:none}
+}
+@media(max-width:720px){                  /* + VAL; let the value bar shrink */
+  #tbl th:nth-child(11),#tbl td:nth-child(11){display:none}
+  .vb{min-width:96px}
+}
+@media(max-width:560px){                  /* + Yahoo; value bar becomes just the number */
+  #tbl th:nth-child(7),#tbl td:nth-child(7){display:none}
+  .vb .track{display:none}
+  .vb{min-width:0}
+  /* tighten so both ✕ and ★ always stay on-screen at phone widths */
+  #tbl th,#tbl td{padding-left:5px;padding-right:5px}
+  .acts button{width:30px;height:30px;font-size:13px;margin-left:2px}
+  td.name .meta{white-space:normal}
+}
 @media(prefers-reduced-motion:no-preference){
   .vb .bar{transition:width .25s ease}
 }
