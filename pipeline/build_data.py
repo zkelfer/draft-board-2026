@@ -92,6 +92,28 @@ else:
     except FileNotFoundError:
         print("borischen: json missing, no previous build to carry from")
 
+# Sleeper injury flags (season-affecting only: IR/PUP/Sus/NFI/DNR) for an on-board badge.
+# fetch_sleeper.py writes data_private/sleeper.json; Questionable/week-to-week is skipped
+# as noise for a draft board. Carried forward from the prior build if not fetched here.
+_INJ = {"IR","PUP","Sus","NFI","DNR"}
+_slp = pathlib.Path(__file__).parent.parent/"data_private"/"sleeper.json"
+if _slp.exists():
+    slp = json.loads(_slp.read_text(encoding="utf-8")).get("players", {})
+    n = 0
+    for key, p in players.items():
+        s = slp.get(key, {})
+        if s.get("inj") in _INJ: p["inj"] = s["inj"]; n += 1
+    print(f"sleeper: {n} board players flagged with a season-affecting injury")
+else:
+    try:
+        prev = {p["id"]: p.get("inj") for p in json.load(open(pathlib.Path(__file__).parent/"data.json"))}
+        n = 0
+        for k,p in players.items():
+            if prev.get(k): p["inj"] = prev[k]; n += 1
+        print(f"sleeper: json missing, carried {n} injury flags from previous build")
+    except FileNotFoundError:
+        print("sleeper: json missing, no previous build to carry from")
+
 # sanity: keys with same display but different key
 out = []
 for k,p in players.items():
@@ -110,3 +132,23 @@ for last,ns in names.items():
 lonely = [p["name"] for p in out if sum(1 for t in ("fft_half","ffc","pp") if t in p["r"])==1 and min(p["r"].get(t,999) for t in ("fft_half","ffc","pp"))<=120]
 print("single-source top120:", lonely)
 json.dump(out, open("data.json","w"))
+
+# per-source freshness dates -> pipeline/dates.json (committed, so dates travel to other
+# machines even when the fetch jsons in data_private/ aren't present). Static snapshot dates
+# for the pasted sources; live 'fetched' dates for the API sources, carried forward if absent.
+_STATIC = {"fft":"2026-08-31","ffc":"2026-08-31","pp":"2026-08-29","adp":"2026-08-24"}
+def _fetched(fname):
+    f = pathlib.Path(__file__).parent.parent/"data_private"/fname
+    try: return json.loads(f.read_text(encoding="utf-8")).get("fetched") if f.exists() else None
+    except Exception: return None
+_dpath = pathlib.Path(__file__).parent/"dates.json"
+_prev = {}
+if _dpath.exists():
+    try: _prev = json.loads(_dpath.read_text(encoding="utf-8"))
+    except Exception: _prev = {}
+dates = dict(_STATIC)
+dates["bc"]  = _fetched("borischen.json") or _prev.get("bc")
+dates["slp"] = _fetched("sleeper.json")   or _prev.get("slp")
+dates = {k:v for k,v in dates.items() if v}
+_dpath.write_text(json.dumps(dates), encoding="utf-8")
+print("source dates:", dates)
