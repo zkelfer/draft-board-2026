@@ -137,6 +137,9 @@ td.name{font-weight:600;font-size:15px}
 td.name .meta{display:block;font-weight:400;font-size:12px;color:var(--mute)}
 td.name .meta em{font-style:normal;color:var(--down)}
 .hl{color:var(--ink2);font-size:13px}
+.wsk{display:inline-flex;align-items:center;gap:6px}
+.wsk svg{display:block}
+.wsk b{font-weight:400;font-size:11px;color:var(--mute);font-variant-numeric:tabular-nums}
 .hl .sep{color:var(--mute);padding:0 3px}
 .spread{font-size:12px;color:var(--mute)}
 .spread.wide{color:var(--gold)}
@@ -215,6 +218,38 @@ tr[data-tier='2'] td.rank{box-shadow:inset 3px 0 0 rgba(242,193,78,.45)}
 .cand.top{border-color:var(--gold)}
 .cand em{font-style:normal;color:var(--up);font-family:var(--cond);font-weight:600}
 .cand i{font-style:normal;color:var(--mute);font-size:11px;font-weight:400}
+
+/* tier / VBD cliff ladders */
+.ladders{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:14px 16px 40px}
+@media(max-width:1000px){.ladders{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.ladders{grid-template-columns:1fr}}
+.ladder{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;align-self:start}
+.ladder h3{margin:0;padding:8px 12px;font-family:var(--chalkface);font-weight:400;font-size:14px;letter-spacing:.06em;border-bottom:2px solid var(--chalk-strong);display:flex;justify-content:space-between;align-items:baseline}
+.ladder h3 .c{font-family:var(--font);font-size:11px;color:var(--mute);letter-spacing:0}
+.lad-tier{padding:3px 12px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);background:rgba(238,246,235,.035)}
+.lad-row{display:flex;align-items:center;gap:8px;padding:5px 12px;border-bottom:1px solid rgba(238,246,235,.05)}
+.lad-row:last-child{border-bottom:0}
+.lad-row .nm{flex:1;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lad-row .pt{font-family:var(--cond);font-weight:600;font-size:14px;color:var(--ink2);min-width:38px;text-align:right}
+.lad-row.gone{opacity:.32}.lad-row.gone .nm{text-decoration:line-through}
+.lad-row.mine{background:rgba(242,193,78,.09)}.lad-row.mine .nm::before{content:"★ ";color:var(--mine)}
+.lad-cliff{display:flex;align-items:center;gap:6px;padding:4px 12px;background:rgba(240,122,87,.14);border-top:2px dashed var(--down);border-bottom:2px dashed var(--down);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--down)}
+
+/* positional-run tracker */
+.runstrip{display:flex;align-items:center;gap:6px;padding:6px 16px;background:var(--panel2);border-bottom:1px solid var(--line);font-size:12px;color:var(--ink2);overflow-x:auto;white-space:nowrap}
+.runstrip .rlab{color:var(--mute)}
+.runstrip .rchip{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:18px;padding:0 5px;border-radius:4px;color:#14200F;font-weight:700;font-size:10px}
+.runstrip .run{color:var(--gold);font-weight:700;margin-left:6px;letter-spacing:.03em}
+.runstrip .norun{color:var(--mute);margin-left:6px}
+
+/* value-vs-ADP scatter */
+.valmap{padding:6px 16px 40px;overflow-x:auto}
+.valmap svg{max-width:100%;height:auto;display:block}
+.valmap .dot{cursor:default}
+.valmap .dot:hover{stroke:var(--ink);stroke-width:2}
+.vm-leg{display:flex;gap:16px;flex-wrap:wrap;padding:6px 16px 0;font-size:12px;color:var(--ink2)}
+.vm-leg span{display:inline-flex;align-items:center;gap:5px}
+.vm-leg i{width:10px;height:10px;border-radius:50%;display:inline-block}
 
 /* sources footer */
 details.src{margin:0 16px 30px;color:var(--mute);font-size:12px;background:var(--glass);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
@@ -301,10 +336,13 @@ details.src li{margin:3px 0}
     <button role="tab" aria-selected="false" data-tab="values">Values vs Yahoo</button>
     <button role="tab" aria-selected="false" data-tab="team">My team</button>
     <button role="tab" aria-selected="false" data-tab="plan">My picks</button>
+    <button role="tab" aria-selected="false" data-tab="tiers">Tiers</button>
+    <button role="tab" aria-selected="false" data-tab="map">Value map</button>
   </nav>
 </header>
 
 <section id="clock" class="clock" aria-label="Best available"></section>
+<div id="runstrip" class="runstrip" aria-label="Positional run tracker" hidden></div>
 
 <main>
   <div id="tab-board">
@@ -398,17 +436,29 @@ details.src li{margin:3px 0}
       <ol class="plan" id="plan"></ol>
     </div>
   </div>
+
+  <div id="tab-tiers" hidden>
+    <p class="plan-note" id="tierNote"></p>
+    <div class="ladders" id="ladders"></div>
+  </div>
+
+  <div id="tab-map" hidden>
+    <p class="plan-note" id="mapNote"></p>
+    <div class="vm-leg" id="mapLeg"></div>
+    <div class="valmap" id="valmap"></div>
+  </div>
 </main>
 
 <details class="src">
   <summary>Sources and how the numbers work</summary>
   <ul>
-    <li><b>Consensus / Avg / Hi-Lo / Spread</b> — average of the expert and market boards below for the selected scoring format. Rank = order by Avg.</li>
-    <li><b>FFToday</b> (Mike Krueger) — separate Standard, Half-PPR and PPR top-225 boards, updated 8/30. This is the format-specific anchor.</li>
-    <li><b>PrizePicks</b> (Christian Hardy) — PPR top-200, 8/29. Used in all formats; note it leans PPR.</li>
-    <li><b>FantasyFootballCalculator</b> — half-PPR market rankings from mock drafts, 8/31. Represents the crowd, not an analyst.</li>
-    <li><b>Yahoo ADP</b> and <b>Underdog ADP</b> — via FFToday's ADP table, 8/24. Yahoo defaults to half-PPR, so this is the closest read on your leaguemates' behavior.</li>
-    <li><b>Value vs Yahoo</b> — the gap between Yahoo ADP and consensus, priced in projected points on a log pick-value curve (a 12-pick fall is worth ~13 pts at the top of the board, ~2 pts at pick 100). Hover the bar for the raw pick gap.</li>
+    <li><b>Consensus / Avg / Hi-Lo / Spread</b> — a <b>weighted power-curve mean</b> of the format's sources (each rank mapped to a pick-value curve, averaged, inverted back to a rank), so one outlier can't drag a near-unanimous pick down. Rank = order by Avg. Hi/Lo shows best/worst rank across sources as a whisker.</li>
+    <li><b>Boris Chen ECR</b> — FantasyPros Expert Consensus (100+ analysts) with Gaussian-mixture tiers, per format. Weighted double as an aggregate. Also drives the Tiers ladder and the Hi/Lo whisker's dispersion.</li>
+    <li><b>FFToday</b> (Mike Krueger) — separate Standard, Half-PPR and PPR top-225 boards. The other format-specific expert anchor.</li>
+    <li><b>PrizePicks</b> (Christian Hardy) — PPR top-200; market signal, leans PPR.</li>
+    <li><b>FantasyFootballCalculator</b> — market rankings from mock drafts. Represents the crowd, not an analyst.</li>
+    <li><b>Yahoo ADP</b> and <b>Underdog ADP</b> — via FFToday's ADP table. Yahoo defaults to half-PPR, so it reads your leaguemates' behavior.</li>
+    <li><b>Value vs Yahoo</b> — the gap between the freshest market ADP (FFC live once refreshed, else the Yahoo snapshot) and consensus, priced in projected points on a log pick-value curve (a 12-pick fall is ~13 pts at the top, ~2 pts at pick 100). Also plotted on the Value map. Hover the bar for the raw pick gap.</li>
     <li><b>Live</b> — FantasyFootballCalculator's public ADP feed for the selected format, fetched on demand. Fails silently if the feed is unreachable from this browser.</li>
     <li>Not included: JJ Zachariason (Late-Round members hub) and The Ringer (paywalled/embedded). Paste their lists into a message and they can be merged in on the next refresh.</li>
     <li>Drafted marks and your picks are saved per draft slot and survive closing the app.</li>
@@ -426,12 +476,19 @@ if(!window.storage){
 const DATA = __DATA__;
 const PROJ = __PROJ__;
 const AS_OF = "__ASOF__";
+// Consensus sources per format as [sourceKey, weight]. Boris Chen (bc_*) is itself an
+// Expert Consensus aggregate of 100+ analysts and is format-native, so it carries double
+// weight; FFToday is a single analyst; FFC (mock ADP) and PrizePicks are market signals.
+// Each format now leads with two format-native experts (FFToday + Boris Chen) before the
+// market feeds, so Std no longer rests only on off-format inputs.
 const FMT_SOURCES = {
-  half:{fft:"fft_half", others:["ffc","pp"]},
-  ppr: {fft:"fft_ppr",  others:["pp","ffc"]},
-  std: {fft:"fft_std",  others:["ffc","pp"]}
+  half: [["fft_half",1],["bc_half",2],["ffc",1],["pp",1]],
+  ppr:  [["fft_ppr",1], ["bc_ppr",2], ["pp",1], ["ffc",1]],
+  std:  [["fft_std",1], ["bc_std",2], ["ffc",1],["pp",1]]
 };
-const SRC_LABEL = {fft_half:"FFToday",fft_ppr:"FFToday",fft_std:"FFToday",ffc:"FFC market",pp:"PrizePicks"};
+const SRC_LABEL = {fft_half:"FFToday",fft_ppr:"FFToday",fft_std:"FFToday",
+  bc_half:"Boris Chen ECR",bc_ppr:"Boris Chen ECR",bc_std:"Boris Chen ECR",
+  ffc:"FFC market",pp:"PrizePicks"};
 const TEAM_BYE = {};
 DATA.forEach(p=>{ if(p.bye && p.team) TEAM_BYE[p.team]=p.bye; });
 DATA.forEach(p=>{ if(!p.bye) p.bye = TEAM_BYE[p.team]||null; });
@@ -557,21 +614,27 @@ function setStatus(s){ document.getElementById("status").textContent = s; }
 
 function compute(){
   computeVBD();
-  const S = FMT_SOURCES[fmt];
-  const keys = [S.fft, ...S.others];
+  const S = FMT_SOURCES[fmt];               // [[sourceKey, weight], ...]
   // consensus in value space: average a pick-value curve, not ordinal ranks,
-  // so one contrarian source can't drag a near-unanimous #1 below the field
+  // so one contrarian source can't drag a near-unanimous #1 below the field.
+  // Weighted so an aggregate like Boris Chen ECR counts for more than a lone analyst.
   const V = r => Math.pow(r, -0.41), unV = v => Math.pow(v, -1/0.41);
   rows = DATA.map(p=>{
-    const vals = keys.map(k=>p.r[k]).filter(v=>v!=null);
-    let avg = vals.length? unV(vals.reduce((a,b)=>a+V(b),0)/vals.length) : null;
-    const hi = vals.length? Math.min(...vals):null, lo = vals.length? Math.max(...vals):null;
+    const present = S.filter(([k])=>p.r[k]!=null);
+    const raws = present.map(([k])=>p.r[k]);
+    let avg = null;
+    if(present.length){
+      let wsum=0, vsum=0;
+      for(const [k,w] of present){ wsum+=w; vsum+=w*V(p.r[k]); }
+      avg = unV(vsum/wsum);
+    }
+    const hi = raws.length? Math.min(...raws):null, lo = raws.length? Math.max(...raws):null;
     const yahoo = p.r.yahoo ?? null, udog = p.r.udog ?? null;
     if(avg==null && yahoo!=null) avg = yahoo + 0.01; // no expert coverage: fall back so they still list
     const vb = vbdMap[p.id];
-    return {...p, avg, hi, lo, spread: (hi!=null&&lo!=null)? lo-hi : null, yahoo, udog, n:vals.length,
+    return {...p, avg, hi, lo, spread: (hi!=null&&lo!=null)? lo-hi : null, yahoo, udog, n:present.length,
             sd: p.r.sd ?? null, vbd: vb? vb.v : null, auc: vb? vb.auc : null, tier: vb? vb.tier : null,
-            live: live[p.id] ?? null, srcs: keys.filter(k=>p.r[k]!=null)};
+            live: live[p.id] ?? null, srcs: present.map(([k])=>k)};
   }).filter(r=>r.avg!=null);
   rows.sort((a,b)=>a.avg-b.avg);
   const posCount = {};
@@ -579,8 +642,12 @@ function compute(){
   rows.forEach((r,i)=>{ r.rank=i+1; posCount[r.pos]=(posCount[r.pos]||0)+1; r.prank=r.pos+posCount[r.pos];
     r.xrank = r.n>0? ++xr : null;
     // value priced in projected points via a log pick-value curve (~17·ln), not raw picks —
-    // a 12-pick fall is ~13 pts at the top of the board and ~2 pts at pick 100
-    r.val = (r.yahoo!=null && r.xrank!=null)? +(17*Math.log(r.yahoo/r.xrank)).toFixed(1) : null;
+    // a 12-pick fall is ~13 pts at the top of the board and ~2 pts at pick 100.
+    // Anchor on the freshest market ADP available: live FFC ADP once refreshed, else the
+    // embedded Yahoo snapshot (which is older than the other inputs).
+    const adp = r.live ?? r.yahoo;
+    r.val = (adp!=null && r.xrank!=null)? +(17*Math.log(adp/r.xrank)).toFixed(1) : null;
+    r.valAnchor = r.live!=null? "FFC live" : (r.yahoo!=null? "Yahoo" : null);
     r.valPicks = (r.yahoo!=null)? r.yahoo - r.rank : null; });
 }
 
@@ -608,12 +675,30 @@ function valBar(r){
   const picks = r.valPicks!=null? ` title="${r.valPicks>0?"+":""}${r.valPicks} picks vs consensus"` : "";
   return `<div class="vb"${picks}><div class="track"><div class="bar ${cls}" style="width:${w}%"></div></div><span class="n ${cls}">${v>0?"+":""}${v.toFixed(1)}</span></div>`;
 }
+// source-spread whisker: best→worst rank across sources with the consensus marked.
+// Length ∝ disagreement (capped), gold when wide — agreement vs boom/bust at a glance.
+function whisker(r){
+  if(r.hi==null || r.lo==null) return `<span class="spread">—</span>`;
+  const spread = r.lo - r.hi, W = 82, cy = 8;
+  const w = Math.max(3, Math.min(spread*1.3, W));
+  const frac = spread>0? (r.avg - r.hi)/spread : 0.5;
+  const cx = Math.max(3, Math.min(w-3, frac*w));
+  const wide = spread>=25, col = wide? "var(--gold)" : "var(--ink2)";
+  const sd = (r.bc && r.bc[fmt])? ` · σ${r.bc[fmt].sd}` : "";
+  return `<span class="wsk" title="best ${r.hi} · worst ${r.lo} · consensus ${r.avg.toFixed(1)} across ${r.n} src${sd}">`
+    + `<svg width="${W}" height="16" viewBox="0 0 ${W} 16" aria-hidden="true">`
+    + `<line x1="1" y1="${cy}" x2="${w}" y2="${cy}" stroke="${col}" stroke-width="2" stroke-linecap="round" opacity=".5"/>`
+    + `<line x1="1" y1="${cy-4}" x2="1" y2="${cy+4}" stroke="${col}" stroke-width="1.5"/>`
+    + `<line x1="${w}" y1="${cy-4}" x2="${w}" y2="${cy+4}" stroke="${col}" stroke-width="1.5"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="3.2" fill="var(--gold)" stroke="var(--panel)" stroke-width="1"/></svg>`
+    + `<b>${r.hi}/${r.lo}</b></span>`;
+}
 function renderBoard(){
   const tb = document.getElementById("rows");
   const list = sorted(rows.filter(visible));
   tb.innerHTML = list.map(r=>{
     const st = state.drafted[r.id]||"";
-    const hilo = r.hi!=null? `<span class="hl">${r.hi}<span class="sep">/</span>${r.lo}</span>` : `<span class="spread">—</span>`;
+    const hilo = whisker(r);
     const sp = r.spread!=null? `<span class="spread ${r.spread>=25?'wide':''}">${r.spread}</span>` : "—";
     const src = r.n? `${r.n} src` : `ADP only`;
     return `<tr class="${st}" data-id="${r.id}"${r.tier?` data-tier="${r.tier}"`:""}>
@@ -737,9 +822,101 @@ function renderPlan(){
   }).join("");
 }
 
+// your next snake pick number (shared shape with renderClock); null if slot unset
+function nextPickNum(){
+  const lg = lgNow();
+  if(!(lg.dp>=1 && lg.dp<=lg.t)) return null;
+  const cur = state.curPick || Object.keys(state.drafted).length + 1;
+  const mine = [];
+  for(let r=1; mine.length<2; r++){ const p=(r%2?lg.dp:lg.t+1-lg.dp)+(r-1)*lg.t; if(p>=cur) mine.push(p); }
+  return mine[0]===cur? mine[1] : mine[0];
+}
+// Tier / VBD cliff ladder: per-position columns grouped by tier, with a dashed line
+// marking where your next pick lands — a thin tier above the line means "draft it now".
+function renderTiers(){
+  const win = nextPickNum();
+  const POSCOL = {QB:"var(--qb)",RB:"var(--rb)",WR:"var(--wr)",TE:"var(--te)"};
+  const tierOf = r => (r.tier!=null? r.tier : (r.bc && r.bc[fmt]? r.bc[fmt].t : null));
+  const valOf  = r => r.vbd!=null? r.vbd.toFixed(0) : `#${r.rank}`;
+  const html = ["QB","RB","WR","TE"].map(P=>{
+    const list = rows.filter(r=>r.pos===P).slice(0,16); // rows are pre-sorted by consensus
+    const left = rows.filter(r=>r.pos===P && !state.drafted[r.id]).length;
+    let out = `<div class="ladder"><h3 style="color:${POSCOL[P]}">${P}<span class="c">${left} left</span></h3>`;
+    let lastTier, cliffDrawn = false;
+    list.forEach(r=>{
+      const t = tierOf(r);
+      if(t!==lastTier){ out += `<div class="lad-tier">Tier ${t ?? "—"}</div>`; lastTier = t; }
+      const survives = win!=null && (r.yahoo==null || r.yahoo > win);
+      if(win!=null && survives && !cliffDrawn && !state.drafted[r.id]){
+        out += `<div class="lad-cliff">↑ likely gone by your pick #${win}</div>`; cliffDrawn = true;
+      }
+      const st = state.drafted[r.id]||"";
+      out += `<div class="lad-row ${st}"><span class="tag ${P}">${r.prank}</span><span class="nm">${r.name}</span><span class="pt">${valOf(r)}</span></div>`;
+    });
+    return out + `</div>`;
+  }).join("");
+  document.getElementById("ladders").innerHTML = html;
+  const valDesc = PROJ? "projected pts over replacement (VAL)" : "consensus rank";
+  document.getElementById("tierNote").innerHTML = win!=null
+    ? `Grouped by tier for <b>${fmt.toUpperCase()}</b> · value = ${valDesc}. The dashed line is your next pick (<b>#${win}</b>) — a thin tier above it means grab now before the cliff.`
+    : `Grouped by tier for <b>${fmt.toUpperCase()}</b> · value = ${valDesc}. Set your draft slot in League → Pick to see the cliff before your next pick.`;
+}
+// Value-vs-ADP scatter: consensus rank (x) vs market ADP (y). The diagonal is fair value;
+// points above the line are falls (the room lets them slide), below are reaches.
+function renderMap(){
+  const POSCOL = {QB:"var(--qb)",RB:"var(--rb)",WR:"var(--wr)",TE:"var(--te)"};
+  const pts = rows.filter(r=>POSCOL[r.pos] && r.rank<=180)
+                  .map(r=>({r, adp:(r.live ?? r.yahoo)}))
+                  .filter(o=>o.adp!=null);
+  const anchor = pts.some(o=>o.r.live!=null)? "FFC live" : "Yahoo";
+  const W=960, H=600, L=52, B=44, T=14, R=14;
+  const maxV = Math.max(120, ...pts.map(o=>Math.max(o.r.rank, o.adp)));
+  const X = v => L + (v-1)/(maxV-1)*(W-L-R);
+  const Y = v => T + (v-1)/(maxV-1)*(H-T-B);
+  const parts = [`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Consensus rank versus market ADP scatter">`];
+  // gridlines + ticks every 24 ranks
+  for(let v=1; v<=maxV; v+=24){
+    parts.push(`<line x1="${X(v)}" y1="${T}" x2="${X(v)}" y2="${H-B}" stroke="var(--line)" stroke-width="1"/>`);
+    parts.push(`<line x1="${L}" y1="${Y(v)}" x2="${W-R}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/>`);
+    parts.push(`<text x="${X(v)}" y="${H-B+16}" fill="var(--mute)" font-size="11" text-anchor="middle">${v}</text>`);
+    parts.push(`<text x="${L-8}" y="${Y(v)+4}" fill="var(--mute)" font-size="11" text-anchor="end">${v}</text>`);
+  }
+  // fair-value diagonal
+  parts.push(`<line x1="${X(1)}" y1="${Y(1)}" x2="${X(maxV)}" y2="${Y(maxV)}" stroke="var(--chalk-strong)" stroke-width="1.5" stroke-dasharray="5 4"/>`);
+  parts.push(`<text x="${X(maxV)-6}" y="${Y(maxV)-8}" fill="var(--mute)" font-size="11" text-anchor="end">fair value</text>`);
+  // axis labels
+  parts.push(`<text x="${L+(W-L-R)/2}" y="${H-6}" fill="var(--ink2)" font-size="12" text-anchor="middle">Consensus rank →</text>`);
+  parts.push(`<text x="14" y="${T+(H-T-B)/2}" fill="var(--ink2)" font-size="12" text-anchor="middle" transform="rotate(-90 14 ${T+(H-T-B)/2})">${anchor} ADP →</text>`);
+  // points
+  pts.forEach(({r,adp})=>{
+    const gone = state.drafted[r.id];
+    const op = gone? 0.18 : 0.92;
+    parts.push(`<circle class="dot" cx="${X(r.rank).toFixed(1)}" cy="${Y(adp).toFixed(1)}" r="4.5" fill="${POSCOL[r.pos]}" stroke="var(--panel)" stroke-width="1" opacity="${op}"><title>${r.name} (${r.prank}) — consensus #${r.rank}, ${anchor} ADP ${adp}${r.val!=null?`, value ${r.val>0?"+":""}${r.val}`:""}</title></circle>`);
+  });
+  // direct-label the biggest falls and reaches (by val), skipping drafted
+  const labeled = pts.filter(o=>!state.drafted[o.r.id] && o.r.val!=null);
+  const falls = [...labeled].sort((a,b)=>b.r.val-a.r.val).slice(0,5);
+  const reaches = [...labeled].sort((a,b)=>a.r.val-b.r.val).slice(0,5);
+  [...falls, ...reaches].forEach(({r,adp})=>{
+    parts.push(`<text x="${(X(r.rank)+7).toFixed(1)}" y="${(Y(adp)+3).toFixed(1)}" fill="var(--ink2)" font-size="10.5">${r.name.split(" ").slice(-1)[0]}</text>`);
+  });
+  parts.push(`</svg>`);
+  document.getElementById("valmap").innerHTML = parts.join("");
+  document.getElementById("mapLeg").innerHTML =
+    Object.entries(POSCOL).map(([p,c])=>`<span><i style="background:${c}"></i>${p}</span>`).join("")
+    + `<span style="color:var(--mute)">· below the line = falls (value) · above = reaches</span>`;
+  document.getElementById("mapNote").innerHTML =
+    `Consensus rank vs <b>${anchor}</b> ADP for <b>${fmt.toUpperCase()}</b>. Points <b>below</b> the dashed line have an ADP later than their rank — they fall to you (draft-day value); <b>above</b> the line the room reaches. Hover a dot for details.`;
+}
 function render(){
   renderClock();
-  if(tab==="board") renderBoard(); else if(tab==="values") renderValues(); else if(tab==="plan") renderPlan(); else renderTeam();
+  renderRun();
+  if(tab==="board") renderBoard();
+  else if(tab==="values") renderValues();
+  else if(tab==="plan") renderPlan();
+  else if(tab==="tiers") renderTiers();
+  else if(tab==="map") renderMap();
+  else renderTeam();
 }
 function syncFmtButtons(){ document.querySelectorAll("[data-fmt]").forEach(b=>b.setAttribute("aria-pressed", b.dataset.fmt===fmt)); }
 
@@ -781,7 +958,7 @@ document.querySelector(".tabs").addEventListener("click", e=>{
   const b = e.target.closest("[data-tab]"); if(!b) return;
   tab = b.dataset.tab;
   document.querySelectorAll("[data-tab]").forEach(x=>x.setAttribute("aria-selected", x===b));
-  ["board","values","team","plan"].forEach(t=>document.getElementById("tab-"+t).hidden = t!==tab);
+  ["board","values","team","plan","tiers","map"].forEach(t=>{ const el=document.getElementById("tab-"+t); if(el) el.hidden = t!==tab; });
   render();
 });
 document.querySelector(".filters").addEventListener("click", e=>{
@@ -798,10 +975,36 @@ document.querySelector("thead").addEventListener("click", e=>{
   if(sortK===k) sortDir*=-1; else { sortK=k; sortDir = (k==="val"||k==="vbd")? -1 : 1; }
   renderBoard();
 });
+// ordered draft sequence for the run tracker (session-only; not persisted).
+// The sync feed is authoritative for order; manual marks append/pop.
+let pickSeq = [];
+const posById = {}; DATA.forEach(p=>posById[p.id]=p.pos);
 function mark(id, act){
   const cur = state.drafted[id];
-  if(act==="clear" || cur===act) delete state.drafted[id]; else state.drafted[id]=act;
+  if(act==="clear" || cur===act){
+    delete state.drafted[id];
+    const i = pickSeq.map(x=>x.id).lastIndexOf(id); if(i>=0) pickSeq.splice(i,1);
+  }else{
+    state.drafted[id]=act;
+    if(!pickSeq.some(x=>x.id===id)) pickSeq.push({id, pos:posById[id], name:(DATA.find(p=>p.id===id)||{}).name||id});
+  }
   save(); compute(); render(); // compute: VAL baselines shift with every pick
+}
+// last ~12 picks as position chips, flagging an active positional run
+function renderRun(){
+  const el = document.getElementById("runstrip");
+  if(!pickSeq.length){ el.hidden = true; return; }
+  el.hidden = false;
+  const POSCOL = {QB:"var(--qb)",RB:"var(--rb)",WR:"var(--wr)",TE:"var(--te)",K:"var(--k)",DEF:"var(--def)"};
+  const recent = pickSeq.slice(-12);
+  const last8 = pickSeq.slice(-8).filter(x=>["QB","RB","WR","TE"].includes(x.pos));
+  const cnt = {}; last8.forEach(x=>cnt[x.pos]=(cnt[x.pos]||0)+1);
+  const run = Object.entries(cnt).filter(([,c])=>c>=4).sort((a,b)=>b[1]-a[1])[0];
+  const chips = recent.map(x=>`<span class="rchip" style="background:${POSCOL[x.pos]||'var(--mute)'}" title="${x.name}">${x.pos||"?"}</span>`).join("");
+  const flag = run
+    ? `<span class="run">▲ ${run[0]} run — ${run[1]} of last 8 · get yours</span>`
+    : `<span class="norun">no active run</span>`;
+  el.innerHTML = `<span class="rlab">Recent:</span>${chips}${flag}`;
 }
 const MOTION_OK = matchMedia("(prefers-reduced-motion: no-preference)").matches;
 function spawnFx(x, y, kind){
@@ -840,7 +1043,12 @@ async function refreshSlotLabels(){
 slotSel.addEventListener("change", async e=>{ slot=+e.target.value; await loadSlot(); refreshSlotLabels(); });
 
 /* live ADP from FantasyFootballCalculator (public JSON, CORS-enabled) */
-function nk(s){ return s.toLowerCase().replace(/[.'’]/g,"").replace(/\b(jr|sr|iii|ii)\b/g,"").replace(/\s+/g," ").trim(); }
+// mirrors pipeline/names.py name_key() exactly — keep the two in sync
+function nk(s){
+  let k = s.toLowerCase().replace(/[.'’‘]/g,"").replace(/\b(jr|sr|iii|ii)\b/g,"").replace(/\s+/g," ").trim();
+  k = ({"kenny gainwell":"kenneth gainwell","dj moore":"d j moore","chig okonkwo":"chigoziem okonkwo","tre harris":"tre harris"})[k] || k;
+  return k.replace("d j moore","dj moore");
+}
 document.getElementById("live").addEventListener("click", async ()=>{
   const map = {std:"standard",half:"half-ppr",ppr:"ppr"};
   setStatus("Fetching live ADP…");
@@ -852,7 +1060,6 @@ document.getElementById("live").addEventListener("click", async ()=>{
     let n=0;
     (j.players||[]).forEach(pl=>{
       let key = pl.position==="DEF"? "def_"+(pl.team==="JAX"?"JAC":pl.team) : nk(pl.name);
-      if(key==="kenny gainwell") key="kenneth gainwell";
       const id = idx[key]; if(id){ live[id]=+pl.adp; n++; }
     });
     compute(); render();
@@ -915,14 +1122,16 @@ function applyPicks(j, src){
   if(!sel){ syncInfo[src] = `no league named like "${state.name}"`; showSync(); return; }
   const idx = playerIndex(), lg = lgNow();
   const myNums = new Set((j.numbered && lg.dp>=1 && lg.dp<=lg.t)? myPicks(lg, 30) : []);
-  let changed = 0; const unmatched = [];
+  let changed = 0; const unmatched = []; const seq = [];
   (sel.picks||[]).forEach(pk=>{
     const id = matchId(pk, idx);
     if(!id){ unmatched.push(pk.name); return; }
+    seq.push({id, pos:posById[id]||pk.pos||"", name:pk.name}); // ordered draft for the run tracker
     const want = (pk.mine || myNums.has(pk.pick))? "mine" : "gone";
     // never downgrade a manual ★ to ✕
     if(state.drafted[id]!==want && !(state.drafted[id]==="mine" && want==="gone")){ state.drafted[id] = want; changed++; }
   });
+  if(seq.length) pickSeq = seq; // feed order is authoritative
   if(sel.cur && sel.cur!==state.curPick){ state.curPick = sel.cur; changed++; }
   if(changed){ save(); compute(); render(); }
   syncInfo[src] = `${(sel.picks||[]).length} picks · ${sel.league}${unmatched.length? ` · unmatched: ${unmatched.slice(0,3).join(", ")}${unmatched.length>3?"…":""}` : ""}`;
