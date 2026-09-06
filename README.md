@@ -74,7 +74,10 @@ Std / Half / PPR toggle.
 ```
 git clone https://github.com/zkelfer/draft-board-2026.git
 cd draft-board-2026
+setup.bat
 ```
+`setup.bat` (Windows) verifies or installs Python (avoiding the `python3` Store-stub
+trap), creates `data_private/`, and checks the clone — safe to re-run any time.
 Nothing to build — `dist/index.html` is committed and the hosted copy is at
 https://zkelfer.github.io/draft-board-2026/. Python 3 (stdlib only) is the only
 requirement for the draft-day helper. `data_private/` is not in the repo and is not
@@ -90,10 +93,12 @@ new one, *Paste state*. All five slots (marks, names, league settings) come acro
 
 ## Draft day
 
-**Windows (native Python or WSL):**
+**Windows:** double-click **`run-draft.bat`** (starts the helper and opens the board;
+`run-draft.bat reset` strips cached picks from a previous mock first). Or by hand:
 ```
-python3 pipeline/toast_sync.py --me "<your Yahoo manager name>"
+python pipeline/toast_sync.py --me "<your Yahoo manager name>"
 ```
+(use `python`/`py`, not `python3` — on Windows that alias is usually a Store stub)
 then open **http://127.0.0.1:8737/** — the board served locally on the same origin
 as the pick feed, so the browser never asks for permissions. Set the slot's
 League → Teams and Pick. Sync is on by default and stays on. Picks arrive from
