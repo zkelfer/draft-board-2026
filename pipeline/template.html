@@ -1294,9 +1294,21 @@ async function helperPoll(){
   }catch(e){ if(syncInfo.helper){ syncInfo.helper = null; showSync(); } }
 }
 /* the Draft Board Sync browser extension posts picks straight into the page */
+const EXT_MIN_VER = "0.5.0";  // bump alongside extension/manifest.json
+let extWarned = false;
+function extOutdated(v){
+  if(!v || v==="?") return true;
+  const a = String(v).split(".").map(Number), b = EXT_MIN_VER.split(".").map(Number);
+  for(let i=0;i<3;i++){ if((a[i]||0)<(b[i]||0)) return true; if((a[i]||0)>(b[i]||0)) return false; }
+  return false;
+}
 window.addEventListener("message", e=>{
   if(e.source!==window || !e.data || e.data.source!=="draft-board-sync") return;
   const d = e.data;
+  if(extOutdated(d.ver) && !extWarned){
+    extWarned = true;  // picks still apply — never drop the feed on draft day, just nag once
+    setStatus(`Extension outdated (${d.ver||"pre-0.5"} — want ${EXT_MIN_VER}+): reload it at chrome://extensions`);
+  }
   if(d.leagues && Object.keys(d.leagues).length) applyPicks({leagues:d.leagues, cur:d.cur, newest:d.newest, numbered:true}, "ext");
   else if((d.picks||[]).length) applyPicks({picks:d.picks, league:d.league}, "ext");
 });

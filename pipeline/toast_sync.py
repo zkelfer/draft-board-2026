@@ -4,17 +4,18 @@ Yahoo's draft room sends a browser notification for every pick
 ("<Player> drafted by <Manager>"), and Windows keeps Chrome's toasts in
 %LOCALAPPDATA%\\Microsoft\\Windows\\Notifications\\wpndatabase.db. This reads
 that database every few seconds (copying it first, WAL included, so the live
-file is never touched), turns the draft toasts into picks, and serves them at
-http://localhost:8737/drafted.json in the same shape yahoo_sync.py uses — so
-the board's "Yahoo sync" button works unchanged.
+file is never touched), turns the draft toasts into picks, and serves the board
+plus a pick feed at http://127.0.0.1:8737/ (/drafted.json, liveness at /health).
 
-    python3 pipeline/toast_sync.py --me "zach"      # substring of your Yahoo manager name
+    python pipeline/toast_sync.py --me "zach"       # substring of your Yahoo manager name
+    python pipeline/toast_sync.py --me "zach" --reset   # ignore all pre-existing toasts
+    (use python/py on Windows — the python3 alias there is a Store stub)
 
 Requires: Chrome notifications allowed for football.fantasysports.yahoo.com
 (they are, if you're seeing the toasts). Runs on Windows (native python or WSL).
 On a Mac there is no toast database: use the browser extension + the hosted board instead.
 """
-import argparse, json, os, re, shutil, sqlite3, sys, threading, time, pathlib, glob
+import argparse, json, os, re, shutil, socket, sqlite3, sys, threading, time, pathlib, glob
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 def _find_db():
@@ -76,13 +77,19 @@ def read_toasts(db):
     return out
 
 state = {"picks": [], "league": "", "leagues": {}, "newest": "", "updated": 0, "managers": []}
+state_lock = threading.Lock()  # poll() writes, request threads serialize — never race
 ignore = set()  # notification IDs to skip — a baseline written by --reset / reset_cache.py so
                 # stale toasts still in Windows' history don't reappear as picks
+# read-health: the board can't tell a live-but-broken helper from a healthy idle one
+# by looking at /drafted.json (it just goes stale). /health exposes this instead.
+health = {"lastReadOk": None, "lastReadAt": 0, "errors": 0, "lastError": ""}
 
 def poll(db, me, seen):
+    last_beat = time.time(); last_err_print = 0.0
     while True:
         try:
             toasts = read_toasts(db)
+            health["lastReadOk"] = True; health["lastReadAt"] = time.time()
             managers = set()
             for nid, arr, title, body in toasts:
                 m = re.match(r"(.+?) drafted by (.+)$", body)
@@ -117,15 +124,26 @@ def poll(db, me, seen):
                             "mine": bool(me) and me.lower() in rec["mgr"].lower(), "by": rec["mgr"]})
             if leagues and leagues != state.get("leagues"):
                 newest = max(leagues, key=lambda k: max(r["arr"] for r in seen.values() if (r.get("title") or "?").replace(" Draft","")==k))
-                state["leagues"] = leagues; state["newest"] = newest
-                state["picks"] = leagues[newest]; state["league"] = newest
-                state["updated"] = time.time()
+                with state_lock:
+                    state["leagues"] = leagues; state["newest"] = newest
+                    state["picks"] = leagues[newest]; state["league"] = newest
+                    state["updated"] = time.time()
                 last = leagues[newest][-1]
                 print(f"\n{time.strftime('%H:%M:%S')}  [{newest}] pick {last['pick']}: {last['name']} — {last['by']}"
                       f"{'  ★ MINE' if last['mine'] else ''}   ({len(leagues[newest])} total)", flush=True)
-            state["managers"] = sorted(managers)
+            with state_lock:
+                state["managers"] = sorted(managers)
         except Exception as e:
-            print("poll error:", e, flush=True)
+            health["lastReadOk"] = False; health["errors"] += 1; health["lastError"] = str(e)
+            if time.time() - last_err_print > 30:  # rate-limit: same failure shouldn't spam the console
+                print(f"{time.strftime('%H:%M:%S')}  poll error ({health['errors']} total): {e}", flush=True)
+                last_err_print = time.time()
+        # ~30s heartbeat so a quiet console still proves the reader is alive
+        if time.time() - last_beat >= 30:
+            ok = "reads OK" if health["lastReadOk"] else f"READS FAILING ({health['lastError']})"
+            print(f"{time.strftime('%H:%M:%S')}  heartbeat — {ok}; {len(state['picks'])} picks"
+                  f"{' ['+state['league']+']' if state['league'] else ''}, {len(state['managers'])} managers", flush=True)
+            last_beat = time.time()
         time.sleep(1)
 
 class Handler(BaseHTTPRequestHandler):
@@ -147,9 +165,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
             self.end_headers(); self.wfile.write(body); return
-        if self.path != "/drafted.json":
+        if self.path == "/health":
+            with state_lock:
+                body = json.dumps({"ok": health["lastReadOk"] is not False,
+                                   "lastReadOk": health["lastReadOk"], "lastReadAt": health["lastReadAt"],
+                                   "errors": health["errors"], "lastError": health["lastError"],
+                                   "picks": len(state["picks"]), "league": state["league"],
+                                   "leagues": len(state["leagues"]), "managers": len(state["managers"]),
+                                   "updated": state["updated"], "baselined": len(ignore),
+                                   "pid": os.getpid()}).encode()
+        elif self.path == "/drafted.json":
+            with state_lock:
+                body = json.dumps(state).encode()
+        else:
             self.send_response(404); self.end_headers(); return
-        body = json.dumps(state).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -193,7 +222,26 @@ if __name__ == "__main__":
     threading.Thread(target=poll, args=(a.db, a.me, seen), daemon=True).start()
     time.sleep(1.5)
     print(f"toast sync: {len(state['picks'])} picks so far; managers seen: {state['managers']}")
-    print(f"open the board at http://127.0.0.1:{PORT}/  (feed: /drafted.json)", flush=True)
+    print(f"open the board at http://127.0.0.1:{PORT}/  (feed: /drafted.json, liveness: /health)", flush=True)
     # ThreadingHTTPServer: serve concurrent pollers (board + extension + any watcher)
     # without stalling; single-threaded HTTPServer would serialize and time out under load.
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    class Server(ThreadingHTTPServer):
+        # HTTPServer defaults allow_reuse_address=1; on Windows SO_REUSEADDR lets a SECOND
+        # process "successfully" bind a live port, so the in-use case never raised. Disable
+        # it and also probe-connect first for a clear message.
+        allow_reuse_address = False
+    _probe = socket.socket(); _probe.settimeout(1)
+    _in_use = _probe.connect_ex(("127.0.0.1", PORT)) == 0
+    _probe.close()
+    if _in_use:
+        sys.exit(f"port {PORT} is already serving — a helper is running.\n"
+                 f"Open the board at http://127.0.0.1:{PORT}/ or stop the other instance first "
+                 f"(only ever run ONE helper).")
+    try:
+        srv = Server(("127.0.0.1", PORT), Handler)
+    except OSError:
+        sys.exit(f"could not bind port {PORT} (in use or blocked) — stop the other instance and retry.")
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopped.", flush=True)

@@ -14,7 +14,7 @@ What it clears (the three places stale picks hide):
 If the helper is running it must be restarted to pick up the baseline (this script
 tells you if so). Equivalent one-shot: start the helper with `--reset`.
 """
-import json, pathlib, socket, sys
+import json, pathlib, sys, urllib.request, urllib.error
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from toast_sync import read_toasts, DEFAULT_DB, PORT
@@ -26,8 +26,10 @@ SEEN_FILE = PRIV / "toast_seen.json"
 
 def helper_running():
     try:
-        with socket.create_connection(("127.0.0.1", PORT), timeout=1):
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=2):
             return True
+    except urllib.error.HTTPError:
+        return True   # something answered (an older helper without /health) — still running
     except OSError:
         return False
 
