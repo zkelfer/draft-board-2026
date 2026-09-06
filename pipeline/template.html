@@ -85,6 +85,9 @@ h1 small{font-family:var(--font);font-weight:500;font-size:11px;color:var(--mute
 .clock .who{font-family:var(--cond);font-size:19px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em}
 .clock .sub{font-size:12px;color:var(--ink2)}
 .clock .sub b{color:var(--up)}
+.clock .cell.rec{border-left:3px solid var(--gold);background:linear-gradient(90deg,rgba(242,193,78,.10),transparent 70%);border-radius:0 6px 6px 0}
+.clock .cell.rec .lab{color:var(--gold)}
+.clock .cell.rec .sub .tag{font-size:10px;min-width:34px;padding:1px 4px;margin-right:2px}
 
 /* filters */
 .filters{display:flex;gap:8px;align-items:center;padding:10px 16px;flex-wrap:wrap;background:var(--glass);backdrop-filter:blur(3px);border-bottom:1px solid var(--line)}
@@ -463,6 +466,7 @@ details.src li{margin:3px 0}
     <li><b>Yahoo ADP</b> and <b>Underdog ADP</b> — via FFToday's ADP table. Yahoo defaults to half-PPR, so it reads your leaguemates' behavior.</li>
     <li><b>Value vs Yahoo</b> — the gap between the freshest market ADP (FFC live once refreshed, else the Yahoo snapshot) and consensus, priced in projected points on a log pick-value curve (a 12-pick fall is ~13 pts at the top, ~2 pts at pick 100). Also plotted on the Value map. Hover the bar for the raw pick gap.</li>
     <li><b>Live</b> — FantasyFootballCalculator's public ADP feed for the selected format, fetched on demand. Fails silently if the feed is unreachable from this browser.</li>
+    <li><b>Draft now</b> (clock strip + gold rings on the Value map; needs League → Pick) — scores what you'd lose by <i>not</i> taking a player now: their value minus the expected best left at that position at your next snake pick (survival odds from run-adjusted ADP, spread by expert disagreement), weighted by open roster slots, minus risk (projection band + expert spread + injury; floor-weighted early, ceiling-tolerant late) and bye stacking. A heuristic, not an oracle — it argues, you decide.</li>
     <li>Not included: JJ Zachariason (Late-Round members hub) and The Ringer (paywalled/embedded). Paste their lists into a message and they can be merged in on the next refresh.</li>
     <li>Drafted marks and your picks are saved per draft slot and survive closing the app.</li>
   </ul>
@@ -501,6 +505,7 @@ let fmt = "half", pos = "ALL", q = "", hideGone = false, sortK = "rank", sortDir
 let slot = 1, state = {name:"", drafted:{}, league:null}; // drafted: id -> "gone" | "mine"
 let live = {};   // id -> adp (per format)
 let rows = [];   // computed
+let recInfo = null; // draft-now engine context: {win, gap, shift} when League → Pick is set
 let storeOK = true;
 
 /* VBD: value over positional baseline, from raw stat projections (proj.json).
@@ -521,10 +526,11 @@ function scoreStats(s, lg, ppr){
 function projPts(pr, lg, ppr){
   // PERT mean of the low/avg/high bands (degrades to avg when bands are absent);
   // undiscounted — missed games are charged against the surplus in computeVBD,
-  // since a missed week costs (player − replacement), not the player's full points
+  // since a missed week costs (player − replacement), not the player's full points.
+  // Also returns the band width (ceiling − floor) as the player's outcome-risk signal.
   const l = scoreStats(pr.l,lg,ppr), a = scoreStats(pr.a,lg,ppr), h = scoreStats(pr.h,lg,ppr);
   if(a==null) return null;
-  return (l!=null && h!=null)? (l + 4*a + h)/6 : a;
+  return (l!=null && h!=null)? {pts:(l + 4*a + h)/6, bw:h-l} : {pts:a, bw:null};
 }
 function computeVBD(){
   vbdMap = {}; vbdCut = null;
@@ -535,7 +541,7 @@ function computeVBD(){
     const pr = PROJ.players[id];
     if(!pool[pr.pos]) continue;
     const v = projPts(pr, lg, ppr);
-    if(v!=null) pool[pr.pos].push({id, pts:v, m: pr.m||0});
+    if(v!=null) pool[pr.pos].push({id, pts:v.pts, bw:v.bw, m: pr.m||0});
   }
   for(const P in pool) pool[P].sort((a,b)=>b.pts-a.pts);
   const base = {QB: Math.round((lg.qb+lg.sf)*lg.t*1.17),
@@ -582,15 +588,15 @@ function computeVBD(){
   basePts.TE = cut.TE>0? nth("TE") : basePts.WR;
   basePts.QB = Math.max(nth("QB"), basePts.RB, basePts.WR, basePts.TE);
   let totalVOR = 0;
-  const raw = {}, ptsOf = {};
+  const raw = {}, ptsOf = {}, bwOf = {};
   for(const P in pool) pool[P].forEach(x=>{
     const v = (x.pts - basePts[P]) * (17 - x.m)/17;
-    raw[x.id] = v; ptsOf[x.id] = x.pts; if(v>0) totalVOR += v;
+    raw[x.id] = v; ptsOf[x.id] = x.pts; bwOf[x.id] = x.bw; if(v>0) totalVOR += v;
   });
   const spots = lg.qb+lg.rb+lg.wr+lg.te+lg.fx+lg.sf+lg.bn+2; // +K +DEF
   const prem = Math.max(0, (lg.bud - spots) * lg.t);
   for(const id in raw)
-    vbdMap[id] = {v: raw[id], pts: ptsOf[id], tier: tierOf[id],
+    vbdMap[id] = {v: raw[id], pts: ptsOf[id], tier: tierOf[id], bw: bwOf[id],
                   auc: totalVOR>0? Math.max(1, Math.round(raw[id]/totalVOR*prem + 1)) : 1};
   vbdCut = cut;
 }
@@ -662,6 +668,86 @@ function compute(){
     r.val = (adp!=null && r.xrank!=null)? +(17*Math.log(adp/r.xrank)).toFixed(1) : null;
     r.valAnchor = r.live!=null? "FFC live" : (r.yahoo!=null? "Yahoo" : null);
     r.valPicks = (r.yahoo!=null)? r.yahoo - r.rank : null; });
+  computeRecs();
+}
+
+/* Draft-now engine: for every available player, score what you LOSE by not taking
+   them now — value over the expected best still there at your next snake pick,
+   weighted by roster need, minus a risk lens (floor early, ceiling late), run
+   pressure and bye stacking. Everything comes from data already on the page:
+   VBD, ADP, Boris Chen dispersion, PERT bands, your ★ roster and the pick feed. */
+function computeRecs(){
+  rows.forEach(r=>{ r.rec=null; r.pSurv=null; r.recWhy=""; });
+  recInfo = null;
+  const lg = lgNow(), win = nextPickNum();
+  if(win==null) return;                       // needs League → Pick to know your turn
+  const cur = state.curPick || Object.keys(state.drafted).length + 1;
+  const gap = Math.max(0, win - cur);         // picks before you're up
+  // run pressure: observed share of the last 8 picks vs a baseline draft mix;
+  // a hot position is treated as going (excess share × gap) picks earlier
+  const BASE_SHARE = {QB:.14, RB:.34, WR:.36, TE:.10};
+  const last8 = pickSeq.slice(-8).map(x=>x.pos).filter(p=>BASE_SHARE[p]);
+  const shift = {};
+  for(const P in BASE_SHARE){
+    const obs = last8.length>=5? last8.filter(p=>p===P).length/last8.length : BASE_SHARE[P];
+    shift[P] = Math.max(0, (obs - BASE_SHARE[P]) * gap);
+  }
+  // survival: P(still available at your pick), normal-ish around (run-adjusted) ADP,
+  // sigma from expert disagreement when we have it
+  const phi = z => 1/(1+Math.exp(-1.702*z));
+  rows.forEach(r=>{
+    const adp = (r.live ?? r.yahoo ?? r.rank) - (shift[r.pos]||0);
+    const sd  = Math.max(4, 0.12*adp, (r.bc && r.bc[fmt])? r.bc[fmt].sd : 0);
+    r.pSurv = phi((adp - win)/sd);
+  });
+  const avail = rows.filter(r=>!state.drafted[r.id]);
+  const valOf = r => r.vbd!=null? Math.max(0,r.vbd) : Math.max(0, 17*Math.log(170/Math.min(r.rank,169)));
+  // expected best value left at each position when you pick (order statistics:
+  // player r is the best available iff r survived and everyone better didn't)
+  const expBest = {};
+  ["QB","RB","WR","TE"].forEach(P=>{
+    let pAllGone = 1, e = 0;
+    avail.filter(r=>r.pos===P).sort((a,b)=>valOf(b)-valOf(a)).slice(0,14).forEach(r=>{
+      e += valOf(r) * r.pSurv * pAllGone;
+      pAllGone *= (1 - r.pSurv);
+    });
+    expBest[P] = e;
+  });
+  // roster needs from my ★ picks
+  const mine = rows.filter(r=>state.drafted[r.id]==="mine");
+  const have = {}; mine.forEach(r=>have[r.pos]=(have[r.pos]||0)+1);
+  const starters = {QB:lg.qb, RB:lg.rb, WR:lg.wr, TE:lg.te, K:1, DEF:1};
+  const flexUsed = Math.max(0,(have.RB||0)-lg.rb)+Math.max(0,(have.WR||0)-lg.wr)+Math.max(0,(have.TE||0)-lg.te);
+  const totalSpots = lg.qb+lg.rb+lg.wr+lg.te+lg.fx+lg.sf+lg.bn+2;
+  const lateEnough = win > (totalSpots-3)*lg.t;   // last ~3 rounds: K/DEF become real needs
+  const needW = P=>{
+    if(P==="K"||P==="DEF") return ((have[P]||0)<1 && lateEnough)? 1.0 : 0.12;
+    if((have[P]||0) < starters[P]) return 1.0;
+    if(P!=="QB" && flexUsed < lg.fx) return 0.85;
+    if(P==="QB" && lg.sf && (have.QB||0) < lg.qb+lg.sf) return 0.9;
+    return Math.max(0.35, 0.6 - 0.05*((have[P]||0)-starters[P]));
+  };
+  // risk lens: rounds 1-3 pay for floor, 10+ chase ceiling
+  const round = Math.ceil(win/lg.t);
+  const riskW = round<=3? 0.30 : round<=6? 0.15 : round<=9? 0.05 : -0.10;
+  const myByes = {}; mine.forEach(r=>{ if(r.bye) myByes[r.bye]=(myByes[r.bye]||0)+1; });
+  avail.forEach(r=>{
+    const v = valOf(r);
+    const later = expBest[r.pos] ?? 0;
+    const risk = (r.bc && r.bc[fmt])? r.bc[fmt].sd/10 : 0;
+    const band = (vbdMap[r.id] && vbdMap[r.id].bw)? vbdMap[r.id].bw/60 : 0;
+    const byeP = (r.bye && (myByes[r.bye]||0)>=2)? 2.5 : 0;
+    r.rec = (v - later)*needW(r.pos) - riskW*10*(risk+band) - (r.inj? 6:0) - byeP;
+    const bits = [];
+    if((have[r.pos]||0) < (starters[r.pos]||0)) bits.push(r.pos+" need");
+    if(r.tier!=null && !avail.some(x=>x!==r && x.pos===r.pos && x.tier===r.tier && x.rank>r.rank))
+      bits.push("last of T"+r.tier);
+    bits.push(Math.round((1-r.pSurv)*100)+"% gone by #"+win);
+    if((shift[r.pos]||0)>=1) bits.push(r.pos+" run live");
+    if(r.inj) bits.push(r.inj);
+    r.recWhy = bits.join(" · ");
+  });
+  recInfo = {win, gap, shift};
 }
 
 function visible(r){
@@ -743,8 +829,16 @@ function renderClock(){
   const best = avail[0];
   const byVal = [...avail].filter(r=>r.val!=null && r.rank<=150).sort((a,b)=>b.val-a.val)[0];
   const cells = [];
-  if(best) cells.push({lab:"Best available", who:best.name, sub:`${best.prank} · #${best.rank} consensus`});
-  if(byVal) cells.push({lab:"Best value", who:byVal.name, sub:`<b>+${byVal.val.toFixed(1)} pts</b> vs Yahoo · #${byVal.rank}`});
+  if(recInfo){
+    // the draft-now engine has a pick horizon: lead with its top three calls
+    avail.filter(r=>r.rec!=null && r.rank<=170)
+         .sort((a,b)=>b.rec-a.rec).slice(0,3)
+         .forEach((r,i)=>cells.push({rec:true, lab:`Draft now #${i+1}`, who:r.name,
+                                     sub:`<span class="tag ${r.pos}">${r.prank}</span> ${r.recWhy}`}));
+  }else{
+    if(best) cells.push({lab:"Best available", who:best.name, sub:`${best.prank} · #${best.rank} consensus`});
+    if(byVal) cells.push({lab:"Best value", who:byVal.name, sub:`<b>+${byVal.val.toFixed(1)} pts</b> vs Yahoo · #${byVal.rank}`});
+  }
   // drop-off to my next snake pick (needs the Pick field in League settings)
   const lg = lgNow();
   let win = null;
@@ -771,7 +865,7 @@ function renderClock(){
     }
     cells.push({lab:`Next ${P}${a.tier? ` · T${a.tier}`:""}`, who:a.name, sub:`#${a.rank}${a.val!=null?` · <b>${a.val>0?'+':''}${a.val.toFixed(1)}</b>`:''}${vona}`});
   });
-  document.getElementById("clock").innerHTML = cells.map(c=>`<div class="cell"><div class="lab">${c.lab}</div><div class="who">${c.who}</div><div class="sub">${c.sub}</div></div>`).join("");
+  document.getElementById("clock").innerHTML = cells.map(c=>`<div class="cell${c.rec?' rec':''}"><div class="lab">${c.lab}</div><div class="who">${c.who}</div><div class="sub">${c.sub}</div></div>`).join("");
 }
 
 function vItem(r, d, sub){
@@ -824,13 +918,20 @@ function renderPlan(){
   const cur = state.curPick || Object.keys(state.drafted).length + 1;
   const avail = rows.filter(r=>!state.drafted[r.id]);
   const picks = myPicks(lg, rounds);
-  note.textContent = `Slot ${lg.dp} of ${lg.t}, ${rounds} rounds. Candidates are players whose ADP says they should still be there (3-pick cushion), best VAL first; gold = the pick. Updates as the draft goes.`;
+  note.textContent = `Slot ${lg.dp} of ${lg.t}, ${rounds} rounds. Candidates are players likely to still be there (≥35% by ADP, run-adjusted), best VAL first; % = odds they reach that pick; gold = the pick. Updates as the draft goes.`;
+  // same survival model as the draft-now engine, evaluated at each of my picks
+  const phi = z => 1/(1+Math.exp(-1.702*z));
+  const survTo = (x,p)=>{
+    const adp = x.live ?? x.yahoo ?? x.rank;
+    const sd = Math.max(4, 0.12*adp, (x.bc && x.bc[fmt])? x.bc[fmt].sd : 0);
+    return phi((adp - p)/sd);
+  };
   el.innerHTML = picks.map((p,i)=>{
     const done = p < cur, now = !done && (picks.find(x=>x>=cur)===p);
-    const cands = avail.filter(x=>((x.yahoo ?? x.rank) >= p-3))
-      .sort((a,b)=>(b.vbd ?? -999)-(a.vbd ?? -999)).slice(0,5);
+    const cands = avail.map(x=>({x, s:survTo(x,p)})).filter(o=>o.s>=0.35)
+      .sort((a,b)=>((b.x.vbd ?? -999)-(a.x.vbd ?? -999))).slice(0,5);
     const body = done? `<span class="plan-note">passed</span>` :
-      cands.map((c,j)=>`<span class="cand${j===0?' top':''}"><span class="tag ${c.pos}">${c.prank}</span>${c.name}${c.vbd!=null?` <em>${c.vbd.toFixed(0)}</em>`:""}${c.tier?` <i>T${c.tier}</i>`:""}</span>`).join("");
+      cands.map(({x:c,s},j)=>`<span class="cand${j===0?' top':''}"><span class="tag ${c.pos}">${c.prank}</span>${c.name}${c.vbd!=null?` <em>${c.vbd.toFixed(0)}</em>`:""}${c.tier?` <i>T${c.tier}</i>`:""} <i>${Math.round(s*100)}%</i></span>`).join("");
     return `<li class="${done?'done':''}${now?' now':''}"><div class="pk">#${p}<span>round ${i+1}</span></div>${body}</li>`;
   }).join("");
 }
@@ -897,14 +998,26 @@ function renderMap(){
   // fair-value diagonal
   parts.push(`<line x1="${X(1)}" y1="${Y(1)}" x2="${X(maxV)}" y2="${Y(maxV)}" stroke="var(--chalk-strong)" stroke-width="1.5" stroke-dasharray="5 4"/>`);
   parts.push(`<text x="${X(maxV)-6}" y="${Y(maxV)-8}" fill="var(--mute)" font-size="11" text-anchor="end">fair value</text>`);
+  // your next pick: everything above this line is likely gone before you're up
+  if(recInfo && recInfo.win<=maxV){
+    parts.push(`<line x1="${L}" y1="${Y(recInfo.win)}" x2="${W-R}" y2="${Y(recInfo.win)}" stroke="var(--gold)" stroke-width="1.5" stroke-dasharray="6 5" opacity=".8"/>`);
+    parts.push(`<text x="${W-R-6}" y="${Y(recInfo.win)-6}" fill="var(--gold)" font-size="11" text-anchor="end">your pick #${recInfo.win} — above this line is likely gone</text>`);
+  }
   // axis labels
   parts.push(`<text x="${L+(W-L-R)/2}" y="${H-6}" fill="var(--ink2)" font-size="12" text-anchor="middle">Consensus rank →</text>`);
   parts.push(`<text x="14" y="${T+(H-T-B)/2}" fill="var(--ink2)" font-size="12" text-anchor="middle" transform="rotate(-90 14 ${T+(H-T-B)/2})">${anchor} ADP →</text>`);
-  // points
+  // points — dim drafted players and (when the engine is on) anyone unlikely to reach you;
+  // ring the engine's current top-3 calls in gold
+  const top3 = new Set(recInfo? rows.filter(r=>!state.drafted[r.id] && r.rec!=null && r.rank<=170)
+                                    .sort((a,b)=>b.rec-a.rec).slice(0,3).map(r=>r.id) : []);
   pts.forEach(({r,adp})=>{
     const gone = state.drafted[r.id];
-    const op = gone? 0.18 : 0.92;
-    parts.push(`<circle class="dot" cx="${X(r.rank).toFixed(1)}" cy="${Y(adp).toFixed(1)}" r="4.5" fill="${POSCOL[r.pos]}" stroke="var(--panel)" stroke-width="1" opacity="${op}"><title>${r.name} (${r.prank}) — consensus #${r.rank}, ${anchor} ADP ${adp}${r.val!=null?`, value ${r.val>0?"+":""}${r.val}`:""}</title></circle>`);
+    const unreachable = !gone && recInfo && r.pSurv!=null && r.pSurv<0.2;
+    const op = gone? 0.18 : unreachable? 0.34 : 0.92;
+    const surv = (recInfo && r.pSurv!=null)? `, ${Math.round(r.pSurv*100)}% reaches your pick` : "";
+    if(top3.has(r.id))
+      parts.push(`<circle cx="${X(r.rank).toFixed(1)}" cy="${Y(adp).toFixed(1)}" r="8" fill="none" stroke="var(--gold)" stroke-width="2"/>`);
+    parts.push(`<circle class="dot" cx="${X(r.rank).toFixed(1)}" cy="${Y(adp).toFixed(1)}" r="4.5" fill="${POSCOL[r.pos]}" stroke="var(--panel)" stroke-width="1" opacity="${op}"><title>${r.name} (${r.prank}) — consensus #${r.rank}, ${anchor} ADP ${adp}${r.val!=null?`, value ${r.val>0?"+":""}${r.val}`:""}${surv}${top3.has(r.id)?` — DRAFT NOW: ${r.recWhy}`:""}</title></circle>`);
   });
   // direct-label the biggest falls and reaches (by val), skipping drafted
   const labeled = pts.filter(o=>!state.drafted[o.r.id] && o.r.val!=null);
@@ -919,7 +1032,9 @@ function renderMap(){
     Object.entries(POSCOL).map(([p,c])=>`<span><i style="background:${c}"></i>${p}</span>`).join("")
     + `<span style="color:var(--mute)">· below the line = falls (value) · above = reaches</span>`;
   document.getElementById("mapNote").innerHTML =
-    `Consensus rank vs <b>${anchor}</b> ADP for <b>${fmt.toUpperCase()}</b>. Points <b>below</b> the dashed line have an ADP later than their rank — they fall to you (draft-day value); <b>above</b> the line the room reaches. Hover a dot for details.`;
+    `Consensus rank vs <b>${anchor}</b> ADP for <b>${fmt.toUpperCase()}</b>. Points <b>below</b> the dashed line have an ADP later than their rank — they fall to you (draft-day value); <b>above</b> the line the room reaches. Hover a dot for details.`
+    + (recInfo? ` <b style="color:var(--gold)">Gold rings = draft-now calls</b>; dimmed dots are unlikely to reach your pick #${recInfo.win}.`
+              : ` Set League → Pick to add your-pick guide line and draft-now rings.`);
 }
 function render(){
   renderClock();
