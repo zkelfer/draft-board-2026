@@ -1,24 +1,8 @@
 import re, json
+from names import norm, TEAM_FIX  # canonical shared normalizer
 from sources import FFTODAY_HALF, FFTODAY_PPR, FFTODAY_STD
 from sources2 import ADP, FFC, PP
 from scratches import SCRATCHED
-
-TEAM_FIX = {"JAX":"JAC"}
-DEF_CITY = {"DEN":"Broncos","HOU":"Texans","SEA":"Seahawks","MIN":"Vikings","PIT":"Steelers","LAR":"Rams","LAC":"Chargers","PHI":"Eagles","NE":"Patriots","DET":"Lions","BUF":"Bills","JAC":"Jaguars","BAL":"Ravens","DAL":"Cowboys","GB":"Packers","KC":"Chiefs"}
-
-def norm(name, pos, team):
-    team = TEAM_FIX.get(team, team)
-    if pos == "DEF":
-        return f"def_{team}", f"{DEF_CITY.get(team, team)} D/ST"
-    n = name.replace("’","'").replace("‘","'")
-    disp = n
-    k = n.lower().replace(".","").replace("'","")
-    k = re.sub(r"\b(jr|sr|iii|ii)\b","",k)
-    k = re.sub(r"\s+"," ",k).strip()
-    k = {"kenny gainwell":"kenneth gainwell","dj moore":"d j moore","chig okonkwo":"chigoziem okonkwo",
-         "tre harris":"tre harris"}.get(k,k)
-    k = k.replace("d j moore","dj moore")
-    return k, disp
 
 players = {}  # key -> dict
 def ensure(key, disp, pos, team, bye=None):
@@ -78,6 +62,35 @@ else:
         print(f"subvertadown: csv missing, carried {n} ranks from previous build")
     except FileNotFoundError:
         print("subvertadown: csv missing, no previous build to carry from")
+
+# Boris Chen (FantasyPros ECR + Gaussian-mixture tiers), per format: feeds consensus.
+# fetch_borischen.py writes data_private/borischen.json; ranks go into r.bc_<fmt> so
+# FMT_SOURCES/compute() can weight them; tiers + dispersion (lo/hi/sd) ride along in
+# p["bc"][fmt] for the tier badges and the source-spread whisker viz.
+_bc = pathlib.Path(__file__).parent.parent/"data_private"/"borischen.json"
+if _bc.exists():
+    bc = json.loads(_bc.read_text(encoding="utf-8"))
+    n = 0
+    for fmt, board in bc.get("boards", {}).items():
+        for key, rec in board.items():
+            if key in players:
+                players[key]["r"]["bc_"+fmt] = rec["r"]
+                players[key].setdefault("bc", {})[fmt] = {"t":rec["t"],"lo":rec["lo"],"hi":rec["hi"],"sd":rec["sd"]}
+                n += 1
+    print(f"borischen: {n} format-rows merged (fetched {bc.get('fetched','?')})")
+else:
+    # not fetched here (e.g. secondary machine): carry last-known bc ranks/tiers from previous build
+    try:
+        prev = {p["id"]: (p.get("bc"), {k:v for k,v in p["r"].items() if k.startswith("bc_")})
+                for p in json.load(open(pathlib.Path(__file__).parent/"data.json"))}
+        n = 0
+        for k,p in players.items():
+            pb, pr = prev.get(k, (None, {}))
+            if pr: p["r"].update(pr); n += 1
+            if pb: p["bc"] = pb
+        print(f"borischen: json missing, carried {n} players' ranks from previous build")
+    except FileNotFoundError:
+        print("borischen: json missing, no previous build to carry from")
 
 # sanity: keys with same display but different key
 out = []

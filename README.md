@@ -11,7 +11,7 @@ leagues. Nothing is redistributed or served to anyone else.
 
 - Standard / Half-PPR / PPR toggle that swaps format-specific ranking boards
 - Consensus rank, average, high/low, and spread across sources
-- **Value vs Yahoo**: Yahoo ADP minus consensus rank — who the room lets fall, who it reaches on
+- **Value vs Yahoo**: the gap between Yahoo ADP and the expert consensus, priced in projected points (`17·ln(ADP/rank)`) — who the room lets fall, who it reaches on
 - Five independent draft slots; mark players drafted (✕) or drafted by me (★), persisted
 - "On the clock" strip: best available, best value, next up at each position
 - Roster tracker with starter needs and bye-week stacking warnings

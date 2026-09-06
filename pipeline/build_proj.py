@@ -6,20 +6,19 @@ template can join proj.json onto data.json by player id.
 Run before build.py. If the xlsx is absent, writes proj.json as null.
 """
 import json, re, pathlib
+from names import name_key as norm_key  # canonical shared normalizer (was a partial copy)
 here = pathlib.Path(__file__).parent
 XLSX = here.parent/"data_private"/"DraftSheets_2026.xlsx"
 
-def norm_key(name):
-    n = name.replace("’","'").replace("‘","'")
-    k = n.lower().replace(".","").replace("'","")
-    k = re.sub(r"\b(jr|sr|iii|ii)\b","",k)
-    k = re.sub(r"\s+"," ",k).strip()
-    k = {"kenny gainwell":"kenneth gainwell","chig okonkwo":"chigoziem okonkwo"}.get(k,k)
-    return k
-
 if not XLSX.exists():
-    (here/"proj.json").write_text("null")
-    print("no xlsx at", XLSX, "- wrote null proj.json")
+    # Don't clobber a good committed proj.json on a machine without the xlsx
+    # (that file is the VAL fallback for draft-day / secondary machines).
+    existing = here/"proj.json"
+    if existing.exists() and existing.read_text(encoding="utf-8").strip() not in ("", "null"):
+        print("no xlsx at", XLSX, "- keeping existing proj.json (not clobbering)")
+    else:
+        existing.write_text("null", encoding="utf-8")
+        print("no xlsx at", XLSX, "- wrote null proj.json")
     raise SystemExit
 
 import openpyxl
