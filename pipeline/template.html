@@ -1043,7 +1043,14 @@ document.getElementById("roster").addEventListener("click", e=>{
 });
 document.getElementById("reset").addEventListener("click", ()=>{
   if(!Object.keys(state.drafted).length) return;
-  if(confirm("Clear all drafted marks for this draft slot?")){ state.drafted={}; state.curPick=null; pickSeq=[]; save(true); render(); }
+  if(confirm("Clear all drafted marks for this draft slot?")){
+    state.drafted={}; state.curPick=null; pickSeq=[]; save(true);
+    // per Zach: clearing the draft also turns Sync OFF (helper + extension) until re-enabled,
+    // and asks the extension to drop its cached room so old picks can't replay later
+    window.postMessage({source:"draft-board-page", type:"clear"}, "*");
+    syncStop("Draft cleared — Sync is off; click Sync when you're ready for the next draft");
+    render();
+  }
 });
 document.getElementById("slotName").addEventListener("input", e=>{ state.name=e.target.value; save(); refreshSlotLabels(); });
 const slotSel = document.getElementById("slot");
@@ -1101,6 +1108,8 @@ const NICK = {rams:"LAR",texans:"HOU",broncos:"DEN",seahawks:"SEA",eagles:"PHI",
 const ALIAS = {"kenny gainwell":"kenneth gainwell","chig okonkwo":"chigoziem okonkwo"};
 const fixTeam = t => (t||"").toUpperCase().replace("JAX","JAC").replace("WSH","WAS");
 const syncInfo = {helper:null, ext:null, helperAt:0, extAt:0};
+let syncPaused = false;  // when true, ignore BOTH feeds (helper poll + extension) — so a
+                         // paused/cleared board can't be refilled by a stale draft
 
 function pickLeague(j){
   if(!(j.leagues && Object.keys(j.leagues).length)) return j.picks? {picks:j.picks, league:j.league||""} : null;
@@ -1131,6 +1140,7 @@ function matchId(pk, idx){
   return idx[key] || (pk.abbrev? abbrevMatch(pk) : null);
 }
 function applyPicks(j, src){
+  if(syncPaused) return;  // sync off: ignore both the helper poll and extension posts
   const sel = pickLeague(j);
   if(!sel){ syncInfo[src] = `no league named like "${state.name}"`; showSync(); return; }
   const idx = playerIndex(), lg = lgNow();
@@ -1152,6 +1162,7 @@ function applyPicks(j, src){
   showSync();
 }
 function showSync(){
+  if(syncPaused){ ySyncBtn.textContent = "Sync off"; return; }  // don't clobber the paused state
   const fresh = k => syncInfo[k] && Date.now()-syncInfo[k+"At"] < 60000;
   const parts = [];
   if(fresh("ext")) parts.push("room: "+syncInfo.ext);
@@ -1175,14 +1186,24 @@ window.addEventListener("message", e=>{
   else if((d.picks||[]).length) applyPicks({picks:d.picks, league:d.league}, "ext");
 });
 let syncTimer = null;
-function syncStart(){ if(syncTimer) return; helperPoll(); syncTimer = setInterval(helperPoll, 5000); showSync(); }
-ySyncBtn.addEventListener("click", ()=>{
-  if(syncTimer){ clearInterval(syncTimer); syncTimer=null; ySyncBtn.textContent="Sync off"; setStatus("Sync paused — click to resume"); try{ localStorage.setItem("ysync","off"); }catch(e){} return; }
+function syncStart(){
+  syncPaused = false;
+  if(!syncTimer){ helperPoll(); syncTimer = setInterval(helperPoll, 5000); }
+  ySyncBtn.textContent = "Sync";
   try{ localStorage.removeItem("ysync"); }catch(e){}
-  syncStart();
-});
+  showSync();
+}
+function syncStop(msg){
+  syncPaused = true;
+  if(syncTimer){ clearInterval(syncTimer); syncTimer = null; }
+  syncInfo.helper = null; syncInfo.ext = null;   // drop the "room:/helper:" status so it clears
+  ySyncBtn.textContent = "Sync off";
+  setStatus(msg || "Sync paused — click to resume");
+  try{ localStorage.setItem("ysync","off"); }catch(e){}
+}
+ySyncBtn.addEventListener("click", ()=>{ if(syncPaused || !syncTimer) syncStart(); else syncStop(); });
 // on by default; only an explicit pause is remembered
-try{ if(localStorage.getItem("ysync")!=="off") setTimeout(syncStart, 600); else ySyncBtn.textContent="Sync off"; }catch(e){ setTimeout(syncStart, 600); }
+try{ if(localStorage.getItem("ysync")==="off"){ syncPaused = true; ySyncBtn.textContent = "Sync off"; } else setTimeout(syncStart, 600); }catch(e){ setTimeout(syncStart, 600); }
 
 /* move draft state between machines via clipboard */
 async function allSlotsState(){
@@ -1220,7 +1241,7 @@ document.getElementById("asof").textContent = "data " + AS_OF;
 compute(); render();
 refreshSlotLabels().then(loadSlot);
 requestAnimationFrame(()=>document.body.classList.add("lights")); // stadium lights on
-setTimeout(()=>window.postMessage({source:"draft-board-page", type:"ping"}, "*"), 1200); // ask the extension for current picks
+setTimeout(()=>{ if(!syncPaused) window.postMessage({source:"draft-board-page", type:"ping"}, "*"); }, 1200); // ask the extension for current picks (not when sync is off)
 setTimeout(()=>document.getElementById("tbl").classList.add("settled"), 900); // stagger only the first paint
 </script>
 </body>

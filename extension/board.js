@@ -21,7 +21,12 @@
   chrome.storage.local.get('room', r => pushRoom(r.room));
   chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.room) pushRoom(ch.room.newValue); });
   window.addEventListener('message', e => {
-    if (e.source === window && e.data && e.data.source === 'draft-board-page' && e.data.type === 'ping')
+    if (e.source !== window || !e.data || e.data.source !== 'draft-board-page') return;
+    if (e.data.type === 'ping')
       chrome.storage.local.get('room', r => pushRoom(r.room));
+    else if (e.data.type === 'clear')
+      // "Clear this draft" on the board: drop the cached room so old picks never replay.
+      // (A live Yahoo tab will simply re-persist as new picks happen — that's a real draft.)
+      chrome.storage.local.remove('room', () => console.log('[draft-board-sync] room cache cleared by board'));
   });
 })();

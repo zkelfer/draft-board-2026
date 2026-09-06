@@ -25,7 +25,9 @@ def _find_db():
     return next((c for c in cands if os.path.exists(c)), "")
 DEFAULT_DB = _find_db()
 import tempfile
-TMP = pathlib.Path(tempfile.gettempdir())/"toast_sync"
+# per-process temp dir: two toast_sync processes (or reset_cache.py alongside a running
+# helper) must never share sqlite copies — that contention corrupts the -wal/-shm reads
+TMP = pathlib.Path(tempfile.gettempdir())/f"toast_sync_{os.getpid()}"
 PORT = 8737
 CITY = {"Arizona":"ARI","Atlanta":"ATL","Baltimore":"BAL","Buffalo":"BUF","Carolina":"CAR","Chicago":"CHI",
   "Cincinnati":"CIN","Cleveland":"CLE","Dallas":"DAL","Denver":"DEN","Detroit":"DET","Green Bay":"GB",
@@ -74,6 +76,8 @@ def read_toasts(db):
     return out
 
 state = {"picks": [], "league": "", "leagues": {}, "newest": "", "updated": 0, "managers": []}
+ignore = set()  # notification IDs to skip — a baseline written by --reset / reset_cache.py so
+                # stale toasts still in Windows' history don't reappear as picks
 
 def poll(db, me, seen):
     while True:
@@ -84,8 +88,9 @@ def poll(db, me, seen):
                 m = re.match(r"(.+?) drafted by (.+)$", body)
                 if not m: continue
                 name, mgr = m.group(1).strip(), m.group(2).strip()
-                managers.add(mgr)
                 nid = str(nid)
+                if nid in ignore: continue  # baseline reset: skip toasts that existed at reset time
+                managers.add(mgr)
                 if nid in seen: continue
                 seen[nid] = {"name": name, "mgr": mgr, "title": title, "arr": arr}
             # optional backfill for picks that expired from the toast history:
@@ -157,10 +162,28 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default=DEFAULT_DB)
     ap.add_argument("--me", default="", help="substring of your Yahoo manager name (marks your picks ★)")
+    ap.add_argument("--reset", action="store_true",
+                    help="start fresh: baseline every draft toast currently in Windows' history so it is ignored; only new picks will appear")
     a = ap.parse_args()
     if not a.db or not os.path.exists(a.db): sys.exit(f"notification db not found: {a.db!r}")
-    SEEN_FILE = pathlib.Path(__file__).parent.parent/"data_private"/"toast_seen.json"
+    PRIV = pathlib.Path(__file__).parent.parent/"data_private"
+    PRIV.mkdir(exist_ok=True)  # fresh clones don't have it; persist would error every 5s
+    SEEN_FILE = PRIV/"toast_seen.json"
+    BASELINE_FILE = PRIV/"toast_baseline.json"
+    if a.reset:
+        # Windows keeps old draft toasts in its history and we re-read them on every start —
+        # deleting toast_seen.json alone never helped. Baseline them instead: every draft
+        # toast that exists right now becomes invisible; only genuinely new picks show up.
+        ids = [str(nid) for nid, *_ in read_toasts(a.db)]
+        json.dump(ids, open(BASELINE_FILE, "w"))
+        if SEEN_FILE.exists(): SEEN_FILE.unlink()
+        print(f"reset: baselined {len(ids)} old draft toasts; starting with an empty feed", flush=True)
+    if BASELINE_FILE.exists():
+        try: ignore.update(json.load(open(BASELINE_FILE)))
+        except Exception as e: print("baseline load error:", e, flush=True)
     seen = json.load(open(SEEN_FILE)) if SEEN_FILE.exists() else {}
+    # drop anything baselined out (covers a baseline written while an old helper was running)
+    seen = {k: v for k, v in seen.items() if k not in ignore}
     def persist():
         while True:
             time.sleep(5)
