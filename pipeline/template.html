@@ -606,14 +606,23 @@ async function loadSlot(){
   syncFmtButtons(); syncLgInputs();
   compute(); render();
 }
-let saveT;
-function save(){
-  clearTimeout(saveT);
-  saveT = setTimeout(async ()=>{
-    try{ await window.storage.set(fmtKey(), JSON.stringify({name:state.name,fmt,drafted:state.drafted,league:state.league}), false); setStatus(""); }
-    catch(e){ storeOK=false; setStatus("Not saving — storage unavailable in this view"); }
-  }, 250);
+let saveT = null;
+function _writeState(){
+  return window.storage.set(fmtKey(), JSON.stringify({name:state.name,fmt,drafted:state.drafted,league:state.league}), false)
+    .then(()=>setStatus("")).catch(()=>{ storeOK=false; setStatus("Not saving — storage unavailable in this view"); });
 }
+// save(true) writes immediately (used by Clear this draft so it can't be lost to a fast
+// reload); save() debounces 250ms for rapid edits.
+function save(immediate){
+  clearTimeout(saveT); saveT = null;
+  if(immediate){ _writeState(); return; }
+  saveT = setTimeout(()=>{ saveT = null; _writeState(); }, 250);
+}
+// flush a pending debounced write before the page goes away, so a reload right after any
+// change never loses it (localStorage set is synchronous, so this completes on unload)
+function flushSave(){ if(saveT){ clearTimeout(saveT); saveT = null; _writeState(); } }
+window.addEventListener("pagehide", flushSave);
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden") flushSave(); });
 function setStatus(s){ document.getElementById("status").textContent = s; }
 
 function compute(){
@@ -1034,7 +1043,7 @@ document.getElementById("roster").addEventListener("click", e=>{
 });
 document.getElementById("reset").addEventListener("click", ()=>{
   if(!Object.keys(state.drafted).length) return;
-  if(confirm("Clear all drafted marks for this draft slot?")){ state.drafted={}; save(); render(); }
+  if(confirm("Clear all drafted marks for this draft slot?")){ state.drafted={}; state.curPick=null; pickSeq=[]; save(true); render(); }
 });
 document.getElementById("slotName").addEventListener("input", e=>{ state.name=e.target.value; save(); refreshSlotLabels(); });
 const slotSel = document.getElementById("slot");
