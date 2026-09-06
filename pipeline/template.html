@@ -390,8 +390,8 @@ details.src li{margin:3px 0}
           <th data-k="avg" class="num" title="Average rank across sources">Avg</th>
           <th data-k="hilo" title="Best and worst rank across sources">Hi / Lo</th>
           <th data-k="spread" class="num" title="Disagreement between sources">Spread</th>
-          <th data-k="yahoo" class="num" title="Yahoo ADP (8/24)">Yahoo</th>
-          <th data-k="udog" class="num" title="Underdog ADP (8/24)">UD</th>
+          <th data-k="yahoo" class="num" title="Yahoo ADP">Yahoo</th>
+          <th data-k="udog" class="num" title="Underdog ADP">UD</th>
           <th data-k="sd" class="num" title="Subvertadown TapThatDraft board order (12-team, 1.0 PPR room)">SubD</th>
           <th data-k="live" class="num" title="Live mock-draft ADP (FantasyFootballCalculator)">Live</th>
           <th data-k="vbd" class="num" title="Live value over replacement: projected points above the positional baseline for your league settings (League button). Updates as players are drafted. Hover a value for its auction $.">VAL</th>
@@ -1181,7 +1181,7 @@ slotSel.addEventListener("change", async e=>{ slot=+e.target.value; await loadSl
 // mirrors pipeline/names.py name_key() exactly — keep the two in sync
 function nk(s){
   let k = s.toLowerCase().replace(/[.'’‘]/g,"").replace(/\b(jr|sr|iii|ii)\b/g,"").replace(/\s+/g," ").trim();
-  k = ({"kenny gainwell":"kenneth gainwell","dj moore":"d j moore","chig okonkwo":"chigoziem okonkwo","tre harris":"tre harris"})[k] || k;
+  k = ({"kenny gainwell":"kenneth gainwell","dj moore":"d j moore","chig okonkwo":"chigoziem okonkwo"})[k] || k;
   return k.replace("d j moore","dj moore");
 }
 document.getElementById("live").addEventListener("click", async ()=>{
@@ -1202,7 +1202,7 @@ document.getElementById("live").addEventListener("click", async ()=>{
   }catch(e){ setStatus("Live ADP unavailable in this browser — embedded ADP still applies"); }
 });
 
-/* Yahoo draft sync: poll the local yahoo_sync.py helper and mirror picks onto the board.
+/* Yahoo draft sync: poll the local toast_sync.py helper and mirror picks onto the board.
    Localhost is exempt from mixed-content blocking, so this works from the hosted page. */
 let ySyncTimer = null;
 const ySyncBtn = document.getElementById("ysync");
@@ -1212,7 +1212,7 @@ function playerIndex(){
   return idx;
 }
 /* ---- draft sync: always on, zero configuration ----
-   Two sources feed applyPicks(): the local helper (toast_sync.py / yahoo_sync.py) polled at
+   Two sources feed applyPicks(): the local helper (toast_sync.py) polled at
    localhost:8737, and the Draft Board Sync extension posting the draft room's pick list into
    the page. Payload: {leagues:{name:[{pick,name,pos,team,by,mine,abbrev}]}, cur:{name:pickOnClock},
    newest:name, numbered:true when pick numbers are the room's real ones}. */
@@ -1284,7 +1284,7 @@ function showSync(){
   if(fresh("helper")) parts.push("helper: "+syncInfo.helper);
   if(syncInfo.ext && !fresh("ext") && !syncInfo.helper) parts.push("room feed stale");
   ySyncBtn.textContent = parts.length? "Sync ●" : "Sync";
-  setStatus(parts.length? "Sync — "+parts.join(" | ") : (syncInfo.helper===null && syncInfo.ext===null? "Sync waiting — run pipeline/toast_sync.py and open the board at http://127.0.0.1:8737/ (hosted board: allow local-network access if Chrome asks)" : ""));
+  setStatus(parts.length? "Sync — "+parts.join(" | ") : (syncInfo.helper===null && syncInfo.ext===null? "Sync waiting — picks arrive from the Draft Board Sync extension (any OS) and/or the Windows helper (run-draft.bat, board at http://127.0.0.1:8737/)" : ""));
 }
 async function helperPoll(){
   try{
@@ -1346,12 +1346,13 @@ document.getElementById("pasteState").addEventListener("click", async ()=>{
 });
 
 document.getElementById("asof").textContent = "data " + AS_OF;
-// per-source freshness line in the sources footer
+// per-source freshness line in the sources footer + date-stamp the ADP column tooltips
 (function(){
-  const NAME = {bc:"Boris Chen ECR", fft:"FFToday", ffc:"FFC", pp:"PrizePicks", adp:"Yahoo/UD ADP", slp:"Sleeper injuries"};
+  const NAME = {bc:"Boris Chen ECR", fft:"FFToday", ffc:"FFC", pp:"PrizePicks", adp:"Yahoo/UD ADP", slp:"Sleeper injuries", sd:"Subvertadown"};
   const el = document.getElementById("freshness");
   const parts = Object.keys(NAME).filter(k=>DATES[k]).map(k=>`${NAME[k]} ${DATES[k]}`);
   if(el && parts.length) el.innerHTML = "<b>Source freshness:</b> " + parts.join(" · ") + ` · built ${AS_OF}`;
+  if(DATES.adp) ["yahoo","udog"].forEach(k=>{ const th=document.querySelector(`th[data-k=${k}]`); if(th) th.title += ` (snapshot ${DATES.adp})`; });
 })();
 compute(); render();
 refreshSlotLabels().then(loadSlot);

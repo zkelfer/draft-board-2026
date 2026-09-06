@@ -4,19 +4,13 @@
      "Last: J. GIBBS (RB · DET) <Team name>"                     → the pick just made (P−1)
    Every pick is recorded with its REAL number and manager (your own picks included — Yahoo
    never toasts those). Your team name is learned the first time a pick is made on your turn.
-   Result is stored for board.js to forward into the board tab, and reported to the optional
-   local monitor. No guessing at Yahoo's obfuscated DOM. */
+   Result is stored for board.js to forward into the board tab. No guessing at Yahoo's
+   obfuscated DOM. */
 (function () {
   if (!/draftclient|draft|mock/i.test(location.href)) return;
 
   const room = { league: '', picks: [], cur: 0, me: '', myTurnAt: 0, updated: 0, url: location.href };
 
-  function report(kind, data) {
-    try {
-      fetch('http://127.0.0.1:8738/report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, url: location.href, ...data }) }).catch(() => {});
-    } catch (e) {}
-  }
   function persist() {
     room.updated = Date.now();
     chrome.storage.local.set({ room });
@@ -57,7 +51,6 @@
     if (room.me) room.picks.forEach(p => { p.mine = p.by === room.me; });
     persist();
     console.log('[draft-board-sync] pick', rec.pick, rec.name, rec.pos, rec.team, 'by', rec.by, rec.mine ? '★' : '');
-    report('room', { league: room.league, cur: room.cur, me: room.me, picks: room.picks });
   }
 
   // resume the pick list if this tab was reloaded mid-draft

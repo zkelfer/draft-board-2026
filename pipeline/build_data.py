@@ -136,6 +136,8 @@ json.dump(out, open("data.json","w"))
 # per-source freshness dates -> pipeline/dates.json (committed, so dates travel to other
 # machines even when the fetch jsons in data_private/ aren't present). Static snapshot dates
 # for the pasted sources; live 'fetched' dates for the API sources, carried forward if absent.
+# _STATIC: snapshot dates of the PASTED sources — update these by hand whenever a
+# sources*.py list is re-pasted (they cannot be detected automatically).
 _STATIC = {"fft":"2026-08-31","ffc":"2026-08-31","pp":"2026-08-29","adp":"2026-08-24"}
 def _fetched(fname):
     f = pathlib.Path(__file__).parent.parent/"data_private"/fname
@@ -149,6 +151,12 @@ if _dpath.exists():
 dates = dict(_STATIC)
 dates["bc"]  = _fetched("borischen.json") or _prev.get("bc")
 dates["slp"] = _fetched("sleeper.json")   or _prev.get("slp")
+# subvertadown csv has no embedded date; use the file's mtime when present
+import datetime as _dt
+if _sd.exists():
+    dates["sd"] = _dt.date.fromtimestamp(_sd.stat().st_mtime).isoformat()
+else:
+    dates["sd"] = _prev.get("sd")
 dates = {k:v for k,v in dates.items() if v}
 _dpath.write_text(json.dumps(dates), encoding="utf-8")
 print("source dates:", dates)

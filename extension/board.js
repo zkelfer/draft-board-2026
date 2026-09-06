@@ -7,16 +7,6 @@
     const league = rm.league || 'Draft room';
     window.postMessage({ source: 'draft-board-sync', leagues: { [league]: rm.picks },
                          cur: { [league]: rm.cur || 0 }, newest: league, me: rm.me || '', updated: rm.updated || 0 }, '*');
-    setTimeout(() => {
-      const st = document.getElementById('status');
-      try {
-        fetch('http://127.0.0.1:8738/report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ kind: 'board', status: st ? st.textContent : '',
-                                 rowsGone: document.querySelectorAll('tr.gone').length,
-                                 rowsMine: document.querySelectorAll('tr.mine').length,
-                                 picksIn: (rm.picks || []).length, cur: rm.cur || 0 }) }).catch(() => {});
-      } catch (e) {}
-    }, 1500);
   }
   chrome.storage.local.get('room', r => pushRoom(r.room));
   chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.room) pushRoom(ch.room.newValue); });

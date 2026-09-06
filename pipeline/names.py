@@ -15,7 +15,7 @@ DEF_CITY = {"DEN":"Broncos","HOU":"Texans","SEA":"Seahawks","MIN":"Vikings","PIT
 # Name variants that must collapse to one key. The "dj moore" two-step below lets
 # "DJ Moore", "D.J. Moore", and "D J Moore" all resolve to the single key "dj moore".
 _ALIAS = {"kenny gainwell":"kenneth gainwell", "dj moore":"d j moore",
-          "chig okonkwo":"chigoziem okonkwo", "tre harris":"tre harris"}
+          "chig okonkwo":"chigoziem okonkwo"}
 
 def name_key(name):
     """Normalize a player NAME to its canonical join key (no pos/team handling)."""
