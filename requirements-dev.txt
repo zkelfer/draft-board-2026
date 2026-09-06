@@ -1,0 +1,3 @@
+# dev/test only — the app and draft-day helper run on Python stdlib alone
+pytest
+openpyxl

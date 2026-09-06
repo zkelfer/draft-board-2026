@@ -26,9 +26,11 @@ leagues. Nothing is redistributed or served to anyone else.
 
 Open `dist/index.html` in a browser. No server needed.
 
-How to test: `pytest tests/test_build.py` — checks `pipeline/data.json` and
-`pipeline/proj.json` parse and rebuilds `dist/index.html` to confirm no
-template placeholders are left behind.
+How to test: `pip install -r requirements-dev.txt` once, then
+`python -m pytest tests/` — checks the JSON inputs parse, rebuilds
+`dist/index.html` with no template placeholders left behind, and guards the
+name-normalizer joins and the Boris Chen fetch shape. CI runs the same suite
+on every push.
 
 ## Data pipeline
 
