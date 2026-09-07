@@ -719,7 +719,7 @@ function computeRecs(){
   const starters = {QB:lg.qb, RB:lg.rb, WR:lg.wr, TE:lg.te, K:1, DEF:1};
   const flexUsed = Math.max(0,(have.RB||0)-lg.rb)+Math.max(0,(have.WR||0)-lg.wr)+Math.max(0,(have.TE||0)-lg.te);
   const totalSpots = lg.qb+lg.rb+lg.wr+lg.te+lg.fx+lg.sf+lg.bn+2;
-  const lateEnough = win > (totalSpots-3)*lg.t;   // last ~3 rounds: K/DEF become real needs
+  const lateEnough = win > (totalSpots-2)*lg.t;   // final 2 rounds only: K/DEF become real needs
   const needW = P=>{
     if(P==="K"||P==="DEF") return ((have[P]||0)<1 && lateEnough)? 1.0 : 0.12;
     if((have[P]||0) < starters[P]) return 1.0;
