@@ -1329,7 +1329,6 @@ function syncStart(){
   syncPaused = false;
   if(!syncTimer){ helperPoll(); syncTimer = setInterval(helperPoll, 5000); }
   ySyncBtn.textContent = "Sync";
-  try{ localStorage.removeItem("ysync"); }catch(e){}
   showSync();
 }
 function syncStop(msg){
@@ -1337,12 +1336,14 @@ function syncStop(msg){
   if(syncTimer){ clearInterval(syncTimer); syncTimer = null; }
   syncInfo.helper = null; syncInfo.ext = null;   // drop the "room:/helper:" status so it clears
   ySyncBtn.textContent = "Sync off";
-  setStatus(msg || "Sync paused — click to resume");
-  try{ localStorage.setItem("ysync","off"); }catch(e){}
+  setStatus(msg || "Sync paused — click to resume (a reload also re-arms it)");
 }
 ySyncBtn.addEventListener("click", ()=>{ if(syncPaused || !syncTimer) syncStart(); else syncStop(); });
-// on by default; only an explicit pause is remembered
-try{ if(localStorage.getItem("ysync")==="off"){ syncPaused = true; ySyncBtn.textContent = "Sync off"; } else setTimeout(syncStart, 600); }catch(e){ setTimeout(syncStart, 600); }
+// Sync ALWAYS auto-starts on load. A pause (incl. Clear-this-draft) lasts only for the
+// session — a persisted "off" once left a LIVE draft silently unsynced, which is far
+// worse than the stale-refill it guarded against (league titles quarantine that anyway).
+try{ localStorage.removeItem("ysync"); }catch(e){}
+setTimeout(syncStart, 600);
 
 /* move draft state between machines via clipboard */
 async function allSlotsState(){
