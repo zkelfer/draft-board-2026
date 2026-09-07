@@ -1177,7 +1177,10 @@ async function refreshSlotLabels(){
 }
 slotSel.addEventListener("change", async e=>{ slot=+e.target.value; await loadSlot(); refreshSlotLabels(); });
 
-/* live ADP from FantasyFootballCalculator (public JSON, CORS-enabled) */
+/* live ADP from FantasyFootballCalculator. NOTE (verified 2026-09-06): the API is alive
+   but stopped sending access-control-allow-origin, so browsers now block this fetch from
+   ANY origin — the button fails gracefully and the embedded ADP still applies. Real fix
+   is server-side: fetch it in pipeline/ and bake it into the build (roadmap). */
 // mirrors pipeline/names.py name_key() exactly — keep the two in sync
 function nk(s){
   let k = s.toLowerCase().replace(/[.'’‘]/g,"").replace(/\b(jr|sr|iii|ii)\b/g,"").replace(/\s+/g," ").trim();
@@ -1199,7 +1202,7 @@ document.getElementById("live").addEventListener("click", async ()=>{
     });
     compute(); render();
     setStatus(n? `Live ADP loaded for ${n} players (${j.meta?.total_drafts||"?"} drafts)` : "Feed returned no matches");
-  }catch(e){ setStatus("Live ADP unavailable in this browser — embedded ADP still applies"); }
+  }catch(e){ setStatus("Live ADP blocked (FFC dropped its CORS header) — the embedded ADP snapshot still applies"); }
 });
 
 /* Yahoo draft sync: poll the local toast_sync.py helper and mirror picks onto the board.
