@@ -732,6 +732,10 @@ function computeRecs(){
   const riskW = round<=3? 0.30 : round<=6? 0.15 : round<=9? 0.05 : -0.10;
   const myByes = {}; mine.forEach(r=>{ if(r.bye) myByes[r.bye]=(myByes[r.bye]||0)+1; });
   avail.forEach(r=>{
+    // K/DEF have no expected-best pool, so their score would compare ABSOLUTE value
+    // against everyone else's MARGINAL value and leak into the cards mid-draft.
+    // They are simply not candidates until the closing rounds with the slot unfilled.
+    if((r.pos==="K" || r.pos==="DEF") && !(lateEnough && (have[r.pos]||0)<1)) return;
     const v = valOf(r);
     const later = expBest[r.pos] ?? 0;
     const risk = (r.bc && r.bc[fmt])? r.bc[fmt].sd/10 : 0;
@@ -1262,7 +1266,12 @@ function applyPicks(j, src){
   const sel = pickLeague(j);
   if(!sel){ syncInfo[src] = `no league named like "${state.name}"`; showSync(); return; }
   const idx = playerIndex(), lg = lgNow();
-  const myNums = new Set((j.numbered && lg.dp>=1 && lg.dp<=lg.t)? myPicks(lg, 30) : []);
+  // Star-by-snake-number is only a FALLBACK for feeds that carry no own-pick flags.
+  // The 0.6.0 extension marks your picks explicitly (Yahoo's literal "You"), and
+  // guessing by number on top of that starred other managers' picks whenever
+  // League → Teams/Pick didn't match the room (seen live in a mock).
+  const feedFlagsMine = (j.leagues? Object.values(j.leagues).some(l=>(l||[]).some(p=>p.mine)) : (j.picks||[]).some(p=>p.mine));
+  const myNums = new Set((j.numbered && !feedFlagsMine && lg.dp>=1 && lg.dp<=lg.t)? myPicks(lg, 30) : []);
   let changed = 0; const unmatched = []; const seq = [];
   (sel.picks||[]).forEach(pk=>{
     const id = matchId(pk, idx);
