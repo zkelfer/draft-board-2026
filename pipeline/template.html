@@ -1301,9 +1301,14 @@ function showSync(){
 async function helperPoll(){
   try{
     const res = await fetch("http://127.0.0.1:8737/drafted.json", {cache:"no-store"});
-    if(!res.ok) throw new Error(res.status);
+    if(!res.ok) throw new Error("HTTP "+res.status);
     applyPicks(await res.json(), "helper");
-  }catch(e){ if(syncInfo.helper){ syncInfo.helper = null; showSync(); } }
+  }catch(e){
+    // say WHY, loudly — a silently-null feed cost us a live draft's sanity
+    syncInfo.helper = null;
+    if(!syncPaused) setStatus("helper poll FAILED ("+((e&&e.message)||e)+") — this tab is "+location.origin
+      +"; the board must be open at http://127.0.0.1:8737/ for the local feed");
+  }
 }
 /* the Draft Board Sync browser extension posts picks straight into the page */
 const EXT_MIN_VER = "0.5.0";  // bump alongside extension/manifest.json
