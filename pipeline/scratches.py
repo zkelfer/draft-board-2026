@@ -7,4 +7,5 @@ SCRATCHED = {
     "jayden reed",  # 10/2/26: season-ending neck surgery after being carted off vs Jets in Week 2 (9/20/26); placed on IR (ESPN, CBS Sports, WISN, Fox11)
     "jalen hurts",  # 10/21/26: out for the season with deep vein thrombosis + bilateral pulmonary emboli (clot traveled from calf to lungs); 3+ months of anticoagulant treatment, no contact until off blood thinners (ESPN, NFL Network, CBS News, NBC News, Fox News, Yahoo Sports, 6abc, reports dated 10/19/26)
     "terry mclaurin",  # 10/26/26: out for the remainder of the season with a torn left patellar tendon suffered in the 10/19/26 MNF loss to the 49ers, will undergo surgery; HC Dan Quinn confirmed the diagnosis 10/20/26 (TSN, WJLA, Fox Baltimore, WTKR, Newsweek)
+    "michael wilson",  # 11/15/26: out for the season with a fractured vertebra in the neck suffered in Week 9 vs. Seahawks; placed on IR 11/10/26, ruled out for the rest of the year by HC Mike LaFleur, prognosis described as good for the future (Yahoo Sports, ESPN, CBS Sports, NBC Sports, Bleacher Report)
 }
